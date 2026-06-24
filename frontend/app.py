@@ -8,6 +8,7 @@ import gzip
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -112,6 +113,66 @@ def _render_pagina(ruta, pagina):
     return png
 
 
+_RE_NUMPREG = re.compile(r"^[pP](\d{3})")
+
+
+def _numero_pregunta(variable):
+    m = _RE_NUMPREG.match(str(variable))
+    return m.group(1) if m else None
+
+
+@st.cache_data(show_spinner=False)
+def _pagina_con_pregunta(ruta, pagina_base, numero, total, zoom):
+    """Renderiza la página resaltando la pregunta 'numero'.
+
+    Afina la página: si el número no aparece como texto en la horneada, lo busca en las
+    vecinas (+-2) y usa esa. Devuelve (png_bytes, pagina_usada, encontrada).
+    """
+    import fitz
+
+    def coincide(w):
+        t = w.strip(".)-º°:() ")
+        return numero is not None and t in (numero, "P" + numero, "p" + numero)
+
+    doc = fitz.open(ruta)
+
+    def rects_de(p):
+        page = doc[p - 1]
+        rr = [fitz.Rect(x0, y0, x1, y1)
+              for x0, y0, x1, y1, w, *_ in page.get_text("words") if coincide(w)]
+        rr.sort(key=lambda r: (round(r.x0 / 60), r.y0))  # por columna y altura
+        return rr
+
+    orden = [pagina_base] + [pagina_base + d for d in (-1, 1, -2, 2)
+                             if 1 <= pagina_base + d <= total]
+    elegida, rect = pagina_base, None
+    for p in orden:
+        rr = rects_de(p)
+        if rr:
+            elegida, rect = p, rr[0]
+            break
+
+    page = doc[elegida - 1]
+    if rect is not None:
+        colw = page.rect.width * 0.46
+        marca = fitz.Rect(rect.x0 - 3, rect.y0 - 3,
+                          min(rect.x0 + colw, page.rect.width), rect.y1 + 3)
+        try:
+            page.draw_rect(marca, color=(0.9, 0.35, 0), width=2,
+                           fill=(1, 0.9, 0.2), fill_opacity=0.3)
+        except Exception:
+            page.draw_rect(marca, color=(0.9, 0.35, 0), width=2)
+    if zoom and rect is not None:
+        clip = fitz.Rect(max(0, rect.x0 - 12), max(0, rect.y0 - 16),
+                         min(page.rect.width, rect.x0 + page.rect.width * 0.5),
+                         min(page.rect.height, rect.y0 + 320))
+        png = page.get_pixmap(dpi=200, clip=clip).tobytes("png")
+    else:
+        png = page.get_pixmap(dpi=170).tobytes("png")
+    doc.close()
+    return png, elegida, rect is not None
+
+
 def _ruta_pdf(mapeo, cuest):
     """Ruta absoluta al PDF: el real si esta presente; si no, el de muestra si coincide forma."""
     pdf_rel = mapeo.get("pdf")
@@ -130,31 +191,49 @@ def _enlaces_cuestionario(modulos, col, anio):
     return [d for d in docs if d.get("url") and (d.get("doc_name") or "").startswith("Cuestionario")]
 
 
+def _mostrar_enlaces(modulos, col, anio):
+    cues = _enlaces_cuestionario(modulos, col, anio)
+    if cues:
+        st.caption("Cuestionario completo:")
+        for d in cues:
+            st.markdown(f"- [{d['doc_name']}]({d['url']})")
+    else:
+        st.caption("Sin cuestionario disponible para este módulo.")
+
+
 def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
-    """Muestra la página exacta del cuestionario (con navegación) o el enlace completo."""
+    """Muestra la pregunta resaltada en su página del cuestionario, con zoom y navegación."""
     st.markdown("#### Visor de cuestionario")
     mapeo = (cuest.get(col, {}).get(anio, {}).get(modulo_code, {}) or {}).get(variable)
-    if mapeo and mapeo.get("pagina"):
-        ruta = _ruta_pdf(mapeo, cuest)
-        if ruta:
-            total = _num_paginas(ruta)
-            exacta = min(int(mapeo["pagina"]), total)
-            nota = " (aproximada, ajústala con el control)" if mapeo.get("aprox") else ""
-            st.success(f"{mapeo.get('forma')}: la pregunta está en la página {exacta}.{nota}")
-            pag = st.number_input("Página del cuestionario", min_value=1, max_value=total,
-                                  value=exacta, key=f"vis_{col}_{modulo_code}_{variable}")
-            st.image(_render_pagina(ruta, int(pag)), use_container_width=True)
-            return
-        st.info(f"Mapeada a {mapeo.get('forma')} página {mapeo['pagina']}, pero el PDF no está "
-                "en este equipo. Corre ai/build_cuestionarios.py o usa el enlace:")
-    else:
+    if not (mapeo and mapeo.get("pagina")):
         st.caption("Variable sin pregunta mapeada (derivada/calculada, o en una grilla del "
-                   "cuestionario). Enlace al cuestionario completo del módulo:")
-    cues = _enlaces_cuestionario(modulos, col, anio)
-    for d in cues:
-        st.markdown(f"- [{d['doc_name']}]({d['url']})")
-    if not cues:
-        st.caption("Sin cuestionario disponible para este módulo.")
+                   "cuestionario).")
+        _mostrar_enlaces(modulos, col, anio)
+        return
+    ruta = _ruta_pdf(mapeo, cuest)
+    if not ruta:
+        st.info(f"Mapeada a {mapeo.get('forma')} página {mapeo['pagina']}, pero el PDF no está "
+                "en este equipo (corre ai/build_cuestionarios.py).")
+        _mostrar_enlaces(modulos, col, anio)
+        return
+    total = _num_paginas(ruta)
+    numero = _numero_pregunta(variable)
+    base = min(int(mapeo["pagina"]), total)
+    zoom = st.toggle("🔍 Acercar a la pregunta", value=True,
+                     key=f"zoom_{modulo_code}_{variable}")
+    png, usada, ok = _pagina_con_pregunta(ruta, base, numero, total, zoom)
+    if ok:
+        st.success(f"{mapeo.get('forma')} · pregunta {numero} resaltada en la página {usada}.")
+    else:
+        st.info(f"{mapeo.get('forma')} · página {usada}. No ubiqué la pregunta en el texto; "
+                "revísala en la página o ajústala abajo.")
+    st.image(png, use_container_width=True)
+    with st.expander("Ver otra página o abrir el cuestionario completo"):
+        ir = st.number_input("Página", min_value=1, max_value=total, value=usada,
+                             key=f"vis_{modulo_code}_{variable}")
+        if ir != usada:
+            st.image(_render_pagina(ruta, int(ir)), use_container_width=True)
+        _mostrar_enlaces(modulos, col, anio)
 
 
 # --- Sidebar: modo institucion (esquema B2B, sin login real) ----------------
