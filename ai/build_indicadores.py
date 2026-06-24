@@ -29,7 +29,16 @@ ANIOS = ["2024"]
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(RAIZ, "data")
 ORDEN_DOMINIO = ["1", "2", "3", "4", "5", "6", "7", "8"]  # orden geográfico del codebook
-REQUERIDAS = {"pobreza", "factor07", "dominio", "inghog1d", "gashog2d", "mieperho", "estrato"}
+REQUERIDAS = {"pobreza", "factor07", "dominio", "inghog1d", "gashog2d", "mieperho", "estrato",
+              "ubigeo"}
+# Código de departamento (2 primeros dígitos del ubigeo) -> nombre.
+DEPARTAMENTOS = {
+    "01": "Amazonas", "02": "Áncash", "03": "Apurímac", "04": "Arequipa", "05": "Ayacucho",
+    "06": "Cajamarca", "07": "Callao", "08": "Cusco", "09": "Huancavelica", "10": "Huánuco",
+    "11": "Ica", "12": "Junín", "13": "La Libertad", "14": "Lambayeque", "15": "Lima",
+    "16": "Loreto", "17": "Madre de Dios", "18": "Moquegua", "19": "Pasco", "20": "Piura",
+    "21": "Puno", "22": "San Martín", "23": "Tacna", "24": "Tumbes", "25": "Ucayali",
+}
 
 
 def _cod(v):
@@ -107,7 +116,7 @@ def main():
         return
     b = leer_sumaria_csv(zip_path)
     b.columns = [c.lower() for c in b.columns]
-    num = ["factor07", "mieperho", "inghog1d", "gashog2d", "pobreza", "dominio", "estrato"]
+    num = ["factor07", "mieperho", "inghog1d", "gashog2d", "pobreza", "dominio", "estrato", "ubigeo"]
     b = b[num].apply(pd.to_numeric, errors="coerce")  # solo lo necesario, sin fragmentar
     b = b.dropna(subset=["factor07"])
     dom_lab = codebook_dominio()
@@ -115,6 +124,7 @@ def main():
         w_pers=b["factor07"] * b["mieperho"],  # peso poblacional (personas)
         dom=b["dominio"].map(lambda d: dom_lab.get(_cod(d)) if pd.notna(d) else None),
         area=b["estrato"].map(lambda e: None if pd.isna(e) else ("Urbano" if e <= 5 else "Rural")),
+        dep=b["ubigeo"].map(lambda u: DEPARTAMENTOS.get(str(int(u)).zfill(6)[:2]) if pd.notna(u) else None),
     )
 
     def tasa_pobreza(sub, extrema=False):
@@ -141,9 +151,19 @@ def main():
     def por_area(func):
         return {a: func(b[b["area"] == a]) for a in ("Urbano", "Rural") if len(b[b["area"] == a])}
 
+    def por_departamento(func):
+        out = {}
+        for cod in sorted(DEPARTAMENTOS):
+            lab = DEPARTAMENTOS[cod]
+            sub = b[b["dep"] == lab]
+            if len(sub):
+                out[lab] = func(sub)
+        return out
+
     def indicador(func):
         return {"nacional": func(b),
                 "Por dominio geográfico": por_dominio(func),
+                "Por departamento": por_departamento(func),
                 "Por área": por_area(func)}
 
     indicadores = {
