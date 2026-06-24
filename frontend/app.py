@@ -12,7 +12,6 @@ import re
 import sys
 import tempfile
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -20,7 +19,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(RAIZ, "data")
 sys.path.insert(0, os.path.join(RAIZ, "ai"))
 
-from comun import fix_encoding, coleccion  # noqa: E402
+from comun import coleccion, fix_encoding, normaliza_modulo  # noqa: E402
 from sinopsis_modulos import sinopsis_de  # noqa: E402
 
 st.set_page_config(page_title="ENAHO Hub", page_icon="📊", layout="wide")
@@ -81,6 +80,7 @@ def indice_descarga(anios):
                                                ("SPSS", m.get("spss_code"))) if c]
                     idx.setdefault(col, {}).setdefault(anio, {})[nombre] = {
                         "code": code, "formatos": formatos,
+                        "modulo_code": normaliza_modulo(m.get("module_code")),
                     }
     return idx
 
@@ -279,7 +279,8 @@ def selector_modulo(idx, prefijo):
     info = modulos[nombre]
     st.caption(sinopsis_de(nombre))
     return {"coleccion": col, "anio": anio, "modulo": nombre,
-            "code": info["code"], "formatos": info["formatos"]}
+            "code": info["code"], "formatos": info["formatos"],
+            "modulo_code": info.get("modulo_code")}
 
 
 # --- Pestaña 1: Inicio ------------------------------------------------------
@@ -415,48 +416,98 @@ def tab_diccionario(df, cuest, modulos):
 
 
 # --- Pestaña 4: Graficador --------------------------------------------------
-def _grafico(df):
-    num_cols = df.select_dtypes("number").columns.tolist()
-    if not num_cols:
-        st.warning("La tabla no tiene columnas numéricas para graficar.")
+@st.cache_data
+def _meta_modulo(coleccion, anio, modulo_code):
+    """{nombre_columna_lower: (etiqueta, valores_dict|None)} del módulo, desde el parquet."""
+    df = cargar_variables()
+    sub = df[(df["coleccion"] == coleccion) & (df["anio"] == anio)
+             & (df["modulo_code"] == modulo_code)]
+    out = {}
+    for _, r in sub.iterrows():
+        vals = None
+        if r["valores"]:
+            try:
+                vals = json.loads(r["valores"])
+            except Exception:
+                vals = None
+        out[str(r["variable"]).lower()] = (r["etiqueta"], vals)
+    return out
+
+
+def _grafico(df, meta):
+    if df.empty:
+        st.warning("La base llegó vacía.")
         return
-    valor = st.selectbox("Variable numérica (valor)", num_cols, key="graf_valor")
-    grupo = st.selectbox("Agrupar por (opcional)", ["(ninguna)"] + df.columns.tolist(),
-                         key="graf_grupo")
-    if grupo == "(ninguna)":
-        serie = df[valor].dropna()
-        if serie.empty:
-            st.warning("La variable no tiene datos.")
+
+    def etq(col):
+        e = meta.get(str(col).lower(), (None, None))[0]
+        return f"{e}  ·  {col}" if e else str(col)
+
+    def tiene_codigos(col):
+        return meta.get(str(col).lower(), (None, None))[1] is not None
+
+    cols = df.columns.tolist()
+    num_cols = df.select_dtypes("number").columns.tolist()
+    # Eje X: primero las variables con códigos etiquetados (son las categorías naturales).
+    x_op = [c for c in cols if tiene_codigos(c)] + [c for c in cols if not tiene_codigos(c)]
+    # Eje Y: primero las numéricas continuas (sin códigos), como ingreso u horas.
+    y_op = [c for c in num_cols if not tiene_codigos(c)] + [c for c in num_cols if tiene_codigos(c)]
+
+    c1, c2 = st.columns(2)
+    with c1:
+        x = st.selectbox("Eje X (categoría)", x_op, format_func=etq, key="graf_x")
+    with c2:
+        op = st.selectbox("Eje Y (qué medir)",
+                          ["Número de casos", "Promedio", "Suma", "Mediana"], key="graf_op")
+    y = None
+    if op != "Número de casos":
+        if not y_op:
+            st.warning("La tabla no tiene variables numéricas para el eje Y.")
             return
-        counts, edges = np.histogram(serie.astype(float), bins=20)
-        centros = ((edges[:-1] + edges[1:]) / 2).round(2)
-        st.bar_chart(pd.DataFrame({"frecuencia": counts}, index=centros.astype(str)))
-        st.caption(f"Distribución de {valor} (n={len(serie):,}).")
+        y = st.selectbox("Variable numérica (Eje Y)", y_op, format_func=etq, key="graf_y")
+
+    # Mapear los códigos del eje X a sus etiquetas (1 -> Hombre, 2 -> Mujer, ...).
+    xvals = meta.get(str(x).lower(), (None, None))[1]
+    xmap = {_cod_valor(k): v for k, v in xvals.items()} if xvals else {}
+
+    def cat(v):
+        if pd.isna(v):
+            return None
+        etiqueta = xmap.get(_cod_valor(v), str(v)) if xmap else str(v)
+        return str(etiqueta).strip() or None  # descarta vacíos y espacios en blanco
+
+    tmp = pd.DataFrame({"cat": df[x].map(cat)})
+    if op == "Número de casos":
+        serie = tmp.dropna(subset=["cat"]).groupby("cat").size()
+        ylabel = "Número de casos"
     else:
-        agg = st.selectbox("Agregación", ["promedio", "suma", "conteo", "mediana"],
-                           key="graf_agg")
-        g = df.dropna(subset=[valor]).groupby(grupo)[valor]
-        serie = {"promedio": g.mean(), "suma": g.sum(),
-                 "conteo": g.count(), "mediana": g.median()}[agg]
-        serie = serie.sort_values(ascending=False).head(30)
-        serie.index = serie.index.astype(str)
-        st.bar_chart(serie)
-        st.caption(f"{agg.capitalize()} de {valor} por {grupo} (top 30).")
+        tmp["y"] = pd.to_numeric(df[y], errors="coerce")
+        g = tmp.dropna(subset=["cat", "y"]).groupby("cat")["y"]
+        serie = {"Promedio": g.mean(), "Suma": g.sum(), "Mediana": g.median()}[op]
+        ylabel = f"{op} de {etq(y)}"
+    if serie.empty:
+        st.warning("No hay datos para esa combinación.")
+        return
+    serie = serie.sort_values(ascending=False).head(30)
+    serie.index = serie.index.astype(str)
+    serie.name = ylabel
+    st.bar_chart(serie, x_label=etq(x), y_label=ylabel)
+    st.caption(f"{ylabel} por «{etq(x)}» (hasta 30 categorías).")
 
 
 def tab_graficador(idx):
     st.header("Graficador")
-    st.caption("Descarga la base de INEI en vivo (cacheada) y grafica al vuelo.")
+    st.caption("Descarga la base de INEI en vivo (cacheada) y grafica por ejes legibles.")
     sel = selector_modulo(idx, "graf")
     if not sel:
         return
     if st.button("Cargar base de INEI", key="graf_cargar"):
-        st.session_state["graf_code"] = sel["code"]
-    code = st.session_state.get("graf_code")
-    if not code:
+        st.session_state["graf_sel"] = sel
+    selg = st.session_state.get("graf_sel")
+    if not selg:
         return
     try:
-        tablas = leer_modulo(code)
+        tablas = leer_modulo(selg["code"])
     except Exception as e:
         st.error(f"No se pudo descargar la base desde INEI: {e}. "
                  "Reintenta o verifica tu conexión; el portal de INEI puede estar caído.")
@@ -466,8 +517,10 @@ def tab_graficador(idx):
         return
     nombre_tabla = st.selectbox("Tabla", list(tablas.keys()), key="graf_tabla")
     df = tablas[nombre_tabla]
-    st.caption(f"{df.shape[0]:,} filas x {df.shape[1]} columnas.")
-    _grafico(df)
+    st.caption(f"{df.shape[0]:,} filas x {df.shape[1]} columnas. "
+               "Elige una categoría (Eje X) y qué medir (Eje Y).")
+    meta = _meta_modulo(selg["coleccion"], selg["anio"], selg["modulo_code"])
+    _grafico(df, meta)
 
 
 # --- Pestaña 5: Descargas ---------------------------------------------------
