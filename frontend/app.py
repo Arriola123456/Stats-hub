@@ -139,7 +139,8 @@ def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
         if ruta:
             total = _num_paginas(ruta)
             exacta = min(int(mapeo["pagina"]), total)
-            st.success(f"{mapeo.get('forma')}: la pregunta sale en la página {exacta}.")
+            nota = " (aproximada, ajústala con el control)" if mapeo.get("aprox") else ""
+            st.success(f"{mapeo.get('forma')}: la pregunta está en la página {exacta}.{nota}")
             pag = st.number_input("Página del cuestionario", min_value=1, max_value=total,
                                   value=exacta, key=f"vis_{col}_{modulo_code}_{variable}")
             st.image(_render_pagina(ruta, int(pag)), use_container_width=True)
@@ -263,14 +264,14 @@ def tab_diccionario(df, cuest, modulos):
     mods = sub_col[["modulo_code", "modulo"]].drop_duplicates().sort_values("modulo_code")
     opciones = list(mods.itertuples(index=False, name=None))
     with c2:
-        mod_sel = st.selectbox("Módulo", opciones, key="dic_mod",
+        mod_sel = st.selectbox("Módulo", opciones, key=f"dic_mod_{col}",
                                format_func=lambda t: f"{t[0]} · {t[1]}")
     modulo_code, modulo_nombre = mod_sel
     st.caption(sinopsis_de(modulo_nombre))
 
     sub_mod = sub_col[sub_col["modulo_code"] == modulo_code]
     q = st.text_input("Filtrar variables del módulo (opcional)",
-                      placeholder="nombre o etiqueta, ej. ingreso", key="dic_q")
+                      placeholder="nombre o etiqueta, ej. ingreso", key=f"dic_q_{modulo_code}")
     if q:
         ql = q.lower()
         sub_mod = sub_mod[sub_mod["variable"].str.lower().str.contains(ql, na=False)
@@ -293,8 +294,10 @@ def tab_diccionario(df, cuest, modulos):
         et = etiquetas.get(v, "")
         return f"{marca}{v}  ·  {et[:70]}" if et else f"{marca}{v}"
 
-    var_sel = st.selectbox("Variable", sub_mod["variable"].tolist(), format_func=_fmt,
-                           key="dic_var")
+    opciones_var = sub_mod["variable"].tolist()
+    idx_def = next((i for i, v in enumerate(opciones_var) if v in mapeadas), 0)
+    var_sel = st.selectbox("Variable", opciones_var, index=idx_def, format_func=_fmt,
+                           key=f"dic_var_{modulo_code}_{q}")
     fila = sub_mod[sub_mod["variable"] == var_sel].iloc[0]
 
     izq, der = st.columns([2, 3])
