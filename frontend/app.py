@@ -93,6 +93,69 @@ def leer_modulo(code):
     return _leer(code)
 
 
+# --- Visor de cuestionario (rasteriza el PDF local con pymupdf) --------------
+@st.cache_data(show_spinner=False)
+def _num_paginas(ruta):
+    import fitz
+    doc = fitz.open(ruta)
+    n = doc.page_count
+    doc.close()
+    return n
+
+
+@st.cache_data(show_spinner=False)
+def _render_pagina(ruta, pagina):
+    import fitz
+    doc = fitz.open(ruta)
+    png = doc[pagina - 1].get_pixmap(dpi=170).tobytes("png")
+    doc.close()
+    return png
+
+
+def _ruta_pdf(mapeo, cuest):
+    """Ruta absoluta al PDF: el real si esta presente; si no, el de muestra si coincide forma."""
+    pdf_rel = mapeo.get("pdf")
+    if pdf_rel and os.path.exists(os.path.join(DATA, pdf_rel)):
+        return os.path.join(DATA, pdf_rel)
+    muestra = cuest.get("_muestra") or {}
+    if muestra.get("forma") == mapeo.get("forma"):
+        ruta = os.path.join(DATA, muestra.get("pdf", ""))
+        if os.path.exists(ruta):
+            return ruta
+    return None
+
+
+def _enlaces_cuestionario(modulos, col, anio):
+    docs = (modulos.get(col, {}).get(anio, {}) or {}).get("docs", [])
+    return [d for d in docs if d.get("url") and (d.get("doc_name") or "").startswith("Cuestionario")]
+
+
+def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
+    """Muestra la página exacta del cuestionario (con navegación) o el enlace completo."""
+    st.markdown("#### Visor de cuestionario")
+    mapeo = (cuest.get(col, {}).get(anio, {}).get(modulo_code, {}) or {}).get(variable)
+    if mapeo and mapeo.get("pagina"):
+        ruta = _ruta_pdf(mapeo, cuest)
+        if ruta:
+            total = _num_paginas(ruta)
+            exacta = min(int(mapeo["pagina"]), total)
+            st.success(f"{mapeo.get('forma')}: la pregunta sale en la página {exacta}.")
+            pag = st.number_input("Página del cuestionario", min_value=1, max_value=total,
+                                  value=exacta, key=f"vis_{col}_{modulo_code}_{variable}")
+            st.image(_render_pagina(ruta, int(pag)), use_container_width=True)
+            return
+        st.info(f"Mapeada a {mapeo.get('forma')} página {mapeo['pagina']}, pero el PDF no está "
+                "en este equipo. Corre ai/build_cuestionarios.py o usa el enlace:")
+    else:
+        st.caption("Variable sin pregunta mapeada (derivada/calculada, o en una grilla del "
+                   "cuestionario). Enlace al cuestionario completo del módulo:")
+    cues = _enlaces_cuestionario(modulos, col, anio)
+    for d in cues:
+        st.markdown(f"- [{d['doc_name']}]({d['url']})")
+    if not cues:
+        st.caption("Sin cuestionario disponible para este módulo.")
+
+
 # --- Sidebar: modo institucion (esquema B2B, sin login real) ----------------
 def sidebar_institucion():
     st.sidebar.header("Modo institución")
@@ -101,7 +164,7 @@ def sidebar_institucion():
     except Exception:
         instituciones = {}
     codigo = st.sidebar.text_input("Código de institución", type="password",
-                                   placeholder="ej. MEF-2024")
+                                   placeholder="ej. UP-2024")
     activa = None
     if codigo:
         nombre = instituciones.get(codigo)
@@ -168,133 +231,85 @@ def tab_modulos(modulos):
     if not modulos:
         st.warning("No hay módulos horneados.")
         return
-    col = st.selectbox("Colección", sorted(modulos.keys()), key="exp_col")
-    anio = st.selectbox("Año", sorted(modulos[col].keys()), key="exp_anio")
+    c1, c2 = st.columns(2)
+    with c1:
+        col = st.selectbox("Colección", sorted(modulos.keys()), key="exp_col")
+    with c2:
+        anio = st.selectbox("Año", sorted(modulos[col].keys()), key="exp_anio")
     nodo = modulos[col][anio]
-    docs = nodo.get("docs", [])
-    st.caption(f"{len(nodo['modulos'])} módulos en {col} {anio}.")
+    docs = [d for d in nodo.get("docs", []) if d.get("url")
+            and any(p in (d.get("doc_name") or "") for p in ("Diccionario", "Ficha", "Cuestionario"))]
+    if docs:
+        with st.expander(f"Documentación de {col} {anio} (diccionarios, fichas, cuestionarios)"):
+            for d in docs:
+                st.markdown(f"- [{d['doc_name']}]({d['url']})")
+    st.caption(f"{len(nodo['modulos'])} módulos. Cada uno con su sinopsis y formatos.")
     for m in nodo["modulos"]:
-        with st.expander(f"{m['modulo_code']} - {m['module_name']}"):
+        with st.expander(f"{m['modulo_code']} · {m['module_name']}"):
             st.write(sinopsis_de(m["module_name"]))
             if m.get("formatos"):
                 st.write("**Formatos disponibles:** " + ", ".join(m["formatos"]))
-            enlaces = [d for d in docs if d.get("url")
-                       and any(p in (d.get("doc_name") or "")
-                               for p in ("Diccionario", "Ficha", "Cuestionario"))]
-            if enlaces:
-                st.write("**Documentación:**")
-                for d in enlaces:
-                    st.markdown(f"- [{d['doc_name']}]({d['url']})")
 
 
-# --- Pestaña 3: Diccionario de variables ------------------------------------
-def _agregar_por_variable(dff):
-    g = dff.groupby("variable")
-    out = g.agg(
-        etiqueta=("etiqueta", lambda s: s.dropna().iloc[0] if not s.dropna().empty else ""),
-        modulos=("modulo", lambda s: ", ".join(sorted(set(s.dropna())))),
-        anio_min=("anio", "min"),
-        anio_max=("anio", "max"),
-        apariciones=("variable", "size"),
-    ).reset_index()
-    return out.sort_values("apariciones", ascending=False)
-
-
-@st.cache_data(show_spinner=False)
-def _render_pagina(pdf_rel, pagina):
-    """Rasteriza una página del PDF local a PNG (bytes). None si el PDF no está disponible."""
-    if not pdf_rel:
-        return None
-    ruta = os.path.join(DATA, pdf_rel)
-    if not os.path.exists(ruta):
-        return None
-    try:
-        import fitz
-        doc = fitz.open(ruta)
-        png = doc[pagina - 1].get_pixmap(dpi=150).tobytes("png")
-        doc.close()
-        return png
-    except Exception:
-        return None
-
-
-def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
-    """Muestra la página exacta del cuestionario si hay mapeo; si no, el enlace completo."""
-    st.markdown("#### Cuestionario")
-    mapeo = (cuest.get(col, {}).get(anio, {}).get(modulo_code, {}) or {}).get(variable)
-    if mapeo and mapeo.get("pagina"):
-        png = _render_pagina(mapeo.get("pdf"), mapeo["pagina"])
-        if png is None:  # PDF no presente: intenta el PDF de muestra si coincide la forma
-            muestra = cuest.get("_muestra") or {}
-            if muestra.get("forma") == mapeo.get("forma"):
-                png = _render_pagina(muestra.get("pdf"), mapeo["pagina"])
-        if png is not None:
-            st.write(f"Pregunta en **{mapeo.get('forma', 'cuestionario')}**, "
-                     f"página **{mapeo['pagina']}**.")
-            st.image(png, use_container_width=True)
-            return
-        st.info(f"Mapeada a {mapeo.get('forma')} página {mapeo['pagina']}, pero el PDF no "
-                "está disponible en este equipo. Cuestionario completo:")
-    else:
-        st.caption("Esta variable no tiene una pregunta mapeada (puede ser derivada o "
-                   "calculada, o estar en una grilla del cuestionario). Cuestionario completo "
-                   "del módulo:")
-    docs = (modulos.get(col, {}).get(anio, {}) or {}).get("docs", [])
-    cues = [d for d in docs if d.get("url") and (d.get("doc_name") or "").startswith("Cuestionario")]
-    if cues:
-        for d in cues:
-            st.markdown(f"- [{d['doc_name']}]({d['url']})")
-    else:
-        st.caption("Sin cuestionario disponible para este módulo.")
-
-
+# --- Pestaña 3: Diccionario de variables (navegacion progresiva) ------------
 def tab_diccionario(df, cuest, modulos):
     st.header("Diccionario de variables")
-    q = st.text_input("Buscar variable por nombre o etiqueta",
-                      placeholder="ej. pobreza, ingreso, p301, gashog2d")
-    if not q:
-        st.caption(f"{df['variable'].str.lower().nunique():,} variables únicas en la demo. "
-                   "Escribe para buscar.")
-        return
-    ql = q.lower()
-    mask = (df["variable"].str.lower().str.contains(ql, na=False)
-            | df["etiqueta"].str.lower().str.contains(ql, na=False))
-    dff = df[mask]
-    if dff.empty:
-        st.warning("Sin coincidencias.")
-        return
-    agg = _agregar_por_variable(dff)
-    st.caption(f"{len(agg):,} variables coinciden (apariciones = en cuántos módulos/años está).")
-    tope = agg.head(500)
-    st.dataframe(
-        tope.rename(columns={"variable": "Variable", "etiqueta": "Etiqueta",
-                             "modulos": "Módulos", "anio_min": "Desde",
-                             "anio_max": "Hasta", "apariciones": "Apariciones"}),
-        use_container_width=True, hide_index=True,
-    )
-    if len(agg) > 500:
-        st.caption("Se muestran las primeras 500. Afina la búsqueda para ver el resto.")
+    st.caption("Elige una colección y un módulo; aparecen sus variables. Al seleccionar una, "
+               "verás su ficha y, a la derecha, la página exacta del cuestionario.")
+    c1, c2 = st.columns(2)
+    with c1:
+        col = st.selectbox("Colección", sorted(df["coleccion"].unique()), key="dic_col")
+    sub_col = df[df["coleccion"] == col]
+    mods = sub_col[["modulo_code", "modulo"]].drop_duplicates().sort_values("modulo_code")
+    opciones = list(mods.itertuples(index=False, name=None))
+    with c2:
+        mod_sel = st.selectbox("Módulo", opciones, key="dic_mod",
+                               format_func=lambda t: f"{t[0]} · {t[1]}")
+    modulo_code, modulo_nombre = mod_sel
+    st.caption(sinopsis_de(modulo_nombre))
 
-    st.divider()
-    sel = st.selectbox("Ver detalle de una variable", tope["variable"].tolist())
-    detalle = dff[dff["variable"] == sel].copy()
-    izq, der = st.columns([3, 2])
+    sub_mod = sub_col[sub_col["modulo_code"] == modulo_code]
+    q = st.text_input("Filtrar variables del módulo (opcional)",
+                      placeholder="nombre o etiqueta, ej. ingreso", key="dic_q")
+    if q:
+        ql = q.lower()
+        sub_mod = sub_mod[sub_mod["variable"].str.lower().str.contains(ql, na=False)
+                          | sub_mod["etiqueta"].fillna("").str.lower().str.contains(ql, na=False)]
+    sub_mod = sub_mod.drop_duplicates("variable")
+    if sub_mod.empty:
+        st.warning("Sin variables que coincidan.")
+        return
+
+    mapeadas = set()
+    for a in sub_mod["anio"].unique():
+        mapeadas |= set((cuest.get(col, {}).get(a, {}).get(modulo_code, {}) or {}).keys())
+    etiquetas = dict(zip(sub_mod["variable"], sub_mod["etiqueta"].fillna("")))
+    n_map = len(mapeadas & set(sub_mod["variable"]))
+    st.caption(f"{len(sub_mod):,} variables en este módulo. El icono 📄 marca las que tienen "
+               f"página de cuestionario mapeada ({n_map} aquí).")
+
+    def _fmt(v):
+        marca = "📄 " if v in mapeadas else ""
+        et = etiquetas.get(v, "")
+        return f"{marca}{v}  ·  {et[:70]}" if et else f"{marca}{v}"
+
+    var_sel = st.selectbox("Variable", sub_mod["variable"].tolist(), format_func=_fmt,
+                           key="dic_var")
+    fila = sub_mod[sub_mod["variable"] == var_sel].iloc[0]
+
+    izq, der = st.columns([2, 3])
     with izq:
-        st.markdown(f"### `{sel}`")
-        et = detalle["etiqueta"].dropna()
-        if not et.empty:
-            st.write(et.iloc[0])
-        st.markdown("#### Apariciones por módulo y año")
-        st.dataframe(
-            detalle[["coleccion", "anio", "modulo", "modulo_code", "n_filas"]].rename(
-                columns={"coleccion": "Colección", "anio": "Año", "modulo": "Módulo",
-                         "modulo_code": "Código", "n_filas": "Filas"}),
-            use_container_width=True, hide_index=True,
-        )
+        st.markdown(f"### `{var_sel}`")
+        st.write(fila["etiqueta"] or "(sin etiqueta)")
+        st.write(f"**Módulo:** {fila['modulo']}  ({modulo_code})")
+        st.write(f"**Colección:** {col}")
+        st.write(f"**Año:** {fila['anio']}   ·   **Registros del módulo:** {fila['n_filas']:,}")
+        otros = [m for m in df[df["variable"] == var_sel]["modulo"].drop_duplicates().tolist()
+                 if m != fila["modulo"]]
+        if otros:
+            st.caption("También aparece en: " + ", ".join(otros))
     with der:
-        fila = detalle.iloc[0]
-        _visor_cuestionario(cuest, modulos, fila["coleccion"], fila["anio"],
-                            fila["modulo_code"], sel)
+        _visor_cuestionario(cuest, modulos, col, fila["anio"], modulo_code, var_sel)
 
 
 # --- Pestaña 4: Graficador --------------------------------------------------
