@@ -1,9 +1,9 @@
 # ENAHO Hub
 
 Portal interactivo que vuelve utilizable toda la Encuesta Nacional de Hogares (ENAHO) para
-tesistas e investigadores: explora módulos, busca entre más de 70 mil variables, grafica al
-vuelo y descarga bases listas para Stata, Python o SPSS, con el cuestionario abierto en la
-página exacta de cada variable.
+tesistas e investigadores: explora módulos, busca entre más de 70 mil variables, consulta
+indicadores clave y descarga bases listas para Stata, Python o SPSS, con el cuestionario
+abierto en la página exacta de cada variable.
 
 ## Problema
 La ENAHO es la principal fuente de pobreza, empleo e ingresos del Perú, pero llega repartida
@@ -19,8 +19,10 @@ funciona OFFLINE:
   años aparece cada variable.
 - Visor de cuestionario: al elegir una variable se muestra el PDF del cuestionario en la
   página exacta de la pregunta (el diferenciador).
-- Graficador y descargas que bajan la base de INEI en vivo (cacheada) y la entregan lista
-  para Stata, SPSS, Python o CSV.
+- Indicadores ENAHO 2024 (pobreza, pobreza extrema, ingreso y gasto del hogar) calculados
+  desde la Sumaria con el factor de expansión y servidos offline.
+- Descargas que bajan la base de INEI en vivo (cacheada) y la entregan lista para Stata,
+  SPSS, Python o CSV.
 - "Modo institución" que demuestra el esquema de negocio B2B por cuentas (MEF, UP, ULIMA,
   PUCP), sin login real.
 
@@ -41,19 +43,22 @@ python ai/build_metadata.py
 # 2. (Opcional) Mapear variables a la página de su cuestionario. Descarga PDFs de INEI.
 python ai/build_cuestionarios.py
 
-# 3. (Opcional) Activar el modo institución copiando el ejemplo de secrets.
+# 3. (Opcional) Hornear los indicadores. Descarga la Sumaria una vez.
+python ai/build_indicadores.py
+
+# 4. (Opcional) Activar el modo institución copiando el ejemplo de secrets.
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 
-# 4. Levantar la app.
+# 5. Levantar la app.
 streamlit run frontend/app.py
 ```
-Con solo el paso 1 la app ya es funcional (capa offline). El graficador, las descargas y el
-paso 2 son los únicos que tocan INEI en vivo.
+Con los pasos 1 y 3 la app es totalmente funcional offline. Solo las descargas (y los pasos 2
+y 3 de horneado) tocan INEI en vivo.
 
 ## Arquitectura
-Principio: la metadata se sirve OFFLINE desde archivos pre-horneados en `data/`, sin red,
-para que la demo no dependa de que INEI esté arriba. Solo el graficador y las descargas usan
-el portal en vivo.
+Principio: la metadata y los indicadores se sirven OFFLINE desde archivos pre-horneados en
+`data/`, sin red, para que la demo no dependa de que INEI esté arriba. Solo las descargas
+usan el portal en vivo.
 
 - `ai/build_metadata.py` lee el catálogo y el índice de variables empaquetados en
   `inei-microdatos` y hornea `data/enaho_modulos.json.gz`, `data/enaho_variables.parquet` y
@@ -62,7 +67,10 @@ el portal en vivo.
 - `ai/build_cuestionarios.py` descarga los cuestionarios, extrae texto por página
   (pdfplumber; pymupdf de respaldo; PaddleOCR opcional para escaneados) y mapea cada variable
   a su página por el número de pregunta, generando `data/cuestionario_paginas.json`.
-- `frontend/app.py` es la app Streamlit con cinco pestañas.
+- `ai/build_indicadores.py` descarga la Sumaria una vez y calcula indicadores ponderados
+  (pobreza, ingreso, gasto) por dominio y área, generando `data/indicadores.json`.
+- `frontend/app.py` es la app Streamlit con cinco pestañas (Inicio, Explorador, Diccionario,
+  Indicadores, Descargas).
 
 Tres colecciones: "ENAHO Metodología Actualizada (2004+)", "ENAHO Metodología Anterior
 (1997-2003)" y "ENAHO Panel".
@@ -73,6 +81,7 @@ ai/
   build_metadata.py       hornea la metadata offline
   sinopsis_modulos.py     sinopsis curadas por módulo
   build_cuestionarios.py  mapea variable -> página del cuestionario
+  build_indicadores.py    hornea indicadores de pobreza e ingreso (Sumaria)
   comun.py                helpers (codificación, colección, módulo)
 frontend/app.py           app Streamlit (5 pestañas)
 data/                     metadata pre-horneada (versionada); PDFs/ZIPs fuera de git
@@ -86,8 +95,9 @@ El curso exige declarar el uso de IA, así que lo detallo. La construcción de e
 fue asistida por un agente de IA (Claude Code) trabajando bajo mi dirección y revisión. En
 concreto, la IA ayudó a implementar:
 - Los scripts de `ai/` (`build_metadata.py`, `sinopsis_modulos.py`, `build_cuestionarios.py`,
-  `comun.py`).
-- La app `frontend/app.py` (cinco pestañas, caché, modo institución, visor de cuestionario).
+  `build_indicadores.py`, `comun.py`).
+- La app `frontend/app.py` (cinco pestañas, caché, modo institución, visor de cuestionario,
+  indicadores pre-horneados).
 - La heurística de mapeo variable -> página del cuestionario (búsqueda del número de pregunta
   por regex con verificación de contexto).
 - La documentación (`CLAUDE.md`, este README) y la configuración de CI.
