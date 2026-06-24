@@ -1,0 +1,78 @@
+{
+ "fuente": "ENAHO 2024 (Sumaria, modulo 34), ponderado con el factor de expansion.",
+ "n_hogares": 33691,
+ "indicadores": {
+  "Tasa de pobreza (%)": {
+   "unidad": "%",
+   "nacional": 27.6,
+   "Por dominio geográfico": {
+    "Costa Norte": 24.3,
+    "Costa Centro": 14.0,
+    "Costa Sur": 20.1,
+    "Sierra Norte": 45.7,
+    "Sierra Centro": 30.1,
+    "Sierra Sur": 25.6,
+    "Selva": 30.0,
+    "Lima Metropolitana": 28.2
+   },
+   "Por área": {
+    "Urbano": 24.8,
+    "Rural": 39.3
+   }
+  },
+  "Tasa de pobreza extrema (%)": {
+   "unidad": "%",
+   "nacional": 5.5,
+   "Por dominio geográfico": {
+    "Costa Norte": 1.9,
+    "Costa Centro": 1.1,
+    "Costa Sur": 1.1,
+    "Sierra Norte": 21.8,
+    "Sierra Centro": 8.8,
+    "Sierra Sur": 6.0,
+    "Selva": 7.9,
+    "Lima Metropolitana": 3.3
+   },
+   "Por área": {
+    "Urbano": 3.1,
+    "Rural": 15.5
+   }
+  },
+  "Ingreso promedio del hogar (S/. al año)": {
+   "unidad": "S/.",
+   "nacional": 42148,
+   "Por dominio geográfico": {
+    "Costa Norte": 40296,
+    "Costa Centro": 45034,
+    "Costa Sur": 42320,
+    "Sierra Norte": 25950,
+    "Sierra Centro": 28765,
+    "Sierra Sur": 33990,
+    "Selva": 35113,
+    "Lima Metropolitana": 56637
+   },
+   "Por área": {
+    "Urbano": 47607,
+    "Rural": 20941
+   }
+  },
+  "Gasto promedio del hogar (S/. al año)": {
+   "unidad": "S/.",
+   "nacional": 31285,
+   "Por dominio geográfico": {
+    "Costa Norte": 32165,
+    "Costa Centro": 34685,
+    "Costa Sur": 30760,
+    "Sierra Norte": 19168,
+    "Sierra Centro": 22204,
+    "Sierra Sur": 25095,
+    "Selva": 26644,
+    "Lima Metropolitana": 40389
+   },
+   "Por área": {
+    "Urbano": 34967,
+    "Rural": 16982
+   }
+  }
+ }
+}
