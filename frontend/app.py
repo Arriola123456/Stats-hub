@@ -434,70 +434,9 @@ def _meta_modulo(coleccion, anio, modulo_code):
     return out
 
 
-def _grafico(df, meta):
-    if df.empty:
-        st.warning("La base llegó vacía.")
-        return
-
-    def etq(col):
-        e = meta.get(str(col).lower(), (None, None))[0]
-        return f"{e}  ·  {col}" if e else str(col)
-
-    def tiene_codigos(col):
-        return meta.get(str(col).lower(), (None, None))[1] is not None
-
-    cols = df.columns.tolist()
-    num_cols = df.select_dtypes("number").columns.tolist()
-    # Eje X: primero las variables con códigos etiquetados (son las categorías naturales).
-    x_op = [c for c in cols if tiene_codigos(c)] + [c for c in cols if not tiene_codigos(c)]
-    # Eje Y: primero las numéricas continuas (sin códigos), como ingreso u horas.
-    y_op = [c for c in num_cols if not tiene_codigos(c)] + [c for c in num_cols if tiene_codigos(c)]
-
-    c1, c2 = st.columns(2)
-    with c1:
-        x = st.selectbox("Eje X (categoría)", x_op, format_func=etq, key="graf_x")
-    with c2:
-        op = st.selectbox("Eje Y (qué medir)",
-                          ["Número de casos", "Promedio", "Suma", "Mediana"], key="graf_op")
-    y = None
-    if op != "Número de casos":
-        if not y_op:
-            st.warning("La tabla no tiene variables numéricas para el eje Y.")
-            return
-        y = st.selectbox("Variable numérica (Eje Y)", y_op, format_func=etq, key="graf_y")
-
-    # Mapear los códigos del eje X a sus etiquetas (1 -> Hombre, 2 -> Mujer, ...).
-    xvals = meta.get(str(x).lower(), (None, None))[1]
-    xmap = {_cod_valor(k): v for k, v in xvals.items()} if xvals else {}
-
-    def cat(v):
-        if pd.isna(v):
-            return None
-        etiqueta = xmap.get(_cod_valor(v), str(v)) if xmap else str(v)
-        return str(etiqueta).strip() or None  # descarta vacíos y espacios en blanco
-
-    tmp = pd.DataFrame({"cat": df[x].map(cat)})
-    if op == "Número de casos":
-        serie = tmp.dropna(subset=["cat"]).groupby("cat").size()
-        ylabel = "Número de casos"
-    else:
-        tmp["y"] = pd.to_numeric(df[y], errors="coerce")
-        g = tmp.dropna(subset=["cat", "y"]).groupby("cat")["y"]
-        serie = {"Promedio": g.mean(), "Suma": g.sum(), "Mediana": g.median()}[op]
-        ylabel = f"{op} de {etq(y)}"
-    if serie.empty:
-        st.warning("No hay datos para esa combinación.")
-        return
-    serie = serie.sort_values(ascending=False).head(30)
-    serie.index = serie.index.astype(str)
-    serie.name = ylabel
-    st.bar_chart(serie, x_label=etq(x), y_label=ylabel)
-    st.caption(f"{ylabel} por «{etq(x)}» (hasta 30 categorías).")
-
-
 def tab_graficador(idx):
     st.header("Graficador")
-    st.caption("Descarga la base de INEI en vivo (cacheada) y grafica por ejes legibles.")
+    st.caption("Descarga una base de INEI y grafica cuántos casos hay en cada categoría.")
     sel = selector_modulo(idx, "graf")
     if not sel:
         return
@@ -509,18 +448,45 @@ def tab_graficador(idx):
     try:
         tablas = leer_modulo(selg["code"])
     except Exception as e:
-        st.error(f"No se pudo descargar la base desde INEI: {e}. "
-                 "Reintenta o verifica tu conexión; el portal de INEI puede estar caído.")
+        st.error(f"No se pudo descargar la base desde INEI: {e}. Reintenta más tarde.")
         return
     if not tablas:
         st.warning("La base llegó vacía.")
         return
-    nombre_tabla = st.selectbox("Tabla", list(tablas.keys()), key="graf_tabla")
-    df = tablas[nombre_tabla]
-    st.caption(f"{df.shape[0]:,} filas x {df.shape[1]} columnas. "
-               "Elige una categoría (Eje X) y qué medir (Eje Y).")
+    df = tablas[st.selectbox("Tabla", list(tablas.keys()), key="graf_tabla")]
+    if df.empty:
+        st.warning("La tabla está vacía.")
+        return
+
     meta = _meta_modulo(selg["coleccion"], selg["anio"], selg["modulo_code"])
-    _grafico(df, meta)
+
+    def etq(c):
+        e = meta.get(str(c).lower(), (None, None))[0]
+        return f"{e}  ·  {c}" if e else str(c)
+
+    # Las variables con códigos (categóricas) van primero: son las que mejor se grafican.
+    cols = list(df.columns)
+    categoricas = [c for c in cols if meta.get(str(c).lower(), (None, None))[1]]
+    var = st.selectbox("Variable a graficar", categoricas + [c for c in cols if c not in categoricas],
+                       format_func=etq, key="graf_var")
+
+    # Traducir los códigos a su significado (1 -> hombre, 2 -> mujer) y contar los casos.
+    vals = meta.get(str(var).lower(), (None, None))[1]
+    xmap = {_cod_valor(k): v for k, v in vals.items()} if vals else {}
+
+    def etiqueta(v):
+        if pd.isna(v):
+            return None
+        e = xmap.get(_cod_valor(v), str(v)) if xmap else str(v)
+        return str(e).strip() or None
+
+    conteo = df[var].map(etiqueta).dropna().value_counts().head(20)
+    if conteo.empty:
+        st.warning("La variable no tiene datos para graficar.")
+        return
+    datos = pd.DataFrame({"categoría": conteo.index.astype(str), "casos": conteo.to_numpy()})
+    st.bar_chart(datos, x="categoría", y="casos")
+    st.caption(f"Número de casos por «{etq(var)}» (hasta 20 categorías).")
 
 
 # --- Pestaña 5: Descargas ---------------------------------------------------
