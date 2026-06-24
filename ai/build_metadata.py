@@ -125,8 +125,11 @@ def main():
     enaho = filter_catalog(cat, survey="enaho")
 
     modulos = construir_modulos(enaho)
-    with gzip.open(os.path.join(DATA, "enaho_modulos.json.gz"), "wt", encoding="utf-8") as f:
-        json.dump(modulos, f, ensure_ascii=False)
+    # gzip determinista (mtime=0) para no generar diffs espurios al re-hornear.
+    crudo = json.dumps(modulos, ensure_ascii=False).encode("utf-8")
+    with open(os.path.join(DATA, "enaho_modulos.json.gz"), "wb") as f:
+        with gzip.GzipFile(fileobj=f, mode="wb", mtime=0) as gz:
+            gz.write(crudo)
 
     df = construir_variables()
     df.to_parquet(os.path.join(DATA, "enaho_variables.parquet"), index=False)
