@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Secrets de Streamlit (usar .streamlit/secrets.toml.example como plantilla)
+.streamlit/secrets.toml
+
+# Variables de entorno
+.env
+
+# Descargas en vivo de INEI: PDFs y ZIPs de cuestionario (fuera de git)
+data/cuestionarios/
+*.zip
+
+# Cache local del paquete inei-microdatos
+.inei-microdatos/
+
+# Sistema
+.DS_Store
+Thumbs.db
