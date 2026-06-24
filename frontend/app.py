@@ -53,6 +53,15 @@ def cargar_cuestionarios():
 
 
 @st.cache_data
+def cargar_indicadores():
+    ruta = os.path.join(DATA, "indicadores.json")
+    if os.path.exists(ruta):
+        with open(ruta, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+@st.cache_data
 def indice_descarga(anios):
     """coleccion -> anio -> {module_name: {code, formatos}} desde el catalogo offline.
 
@@ -85,13 +94,11 @@ def indice_descarga(anios):
     return idx
 
 
+@st.cache_data(show_spinner="Descargando base de INEI...")
 def leer_modulo(code):
-    """Descarga y lee un modulo de INEI (en vivo). Cacheado; puede lanzar por red."""
-    @st.cache_data(show_spinner=f"Descargando base {code} de INEI...")
-    def _leer(c):
-        from inei_microdatos import read_module
-        return read_module(c)
-    return _leer(code)
+    """Descarga y lee un modulo de INEI (en vivo), cacheado por codigo. Puede lanzar por red."""
+    from inei_microdatos import read_module
+    return read_module(code)
 
 
 # --- Visor de cuestionario (rasteriza el PDF local con pymupdf) --------------
@@ -293,8 +300,8 @@ def tab_inicio(resumen, institucion):
         "La ENAHO es la principal fuente de pobreza, empleo e ingresos del Perú, pero llega "
         "en decenas de módulos, formatos y años con codificación incómoda. **ENAHO Hub** "
         "ordena esa data pública y te ahorra el trabajo: explora los módulos con su sinopsis, "
-        "busca entre miles de variables y mira dónde aparecen, grafica al vuelo y descarga "
-        "las bases listas para Stata, Python o SPSS. La metadata se sirve offline, así que "
+        "busca entre miles de variables y mira dónde aparecen, consulta indicadores clave y "
+        "descarga las bases listas para Stata, Python o SPSS. La metadata se sirve offline, así que "
         "la demo no depende de que INEI esté arriba."
     )
     cob = resumen.get("cobertura_total", {})
@@ -415,78 +422,32 @@ def tab_diccionario(df, cuest, modulos):
         _visor_cuestionario(cuest, modulos, col, fila["anio"], modulo_code, var_sel)
 
 
-# --- Pestaña 4: Graficador --------------------------------------------------
-@st.cache_data
-def _meta_modulo(coleccion, anio, modulo_code):
-    """{nombre_columna_lower: (etiqueta, valores_dict|None)} del módulo, desde el parquet."""
-    df = cargar_variables()
-    sub = df[(df["coleccion"] == coleccion) & (df["anio"] == anio)
-             & (df["modulo_code"] == modulo_code)]
-    out = {}
-    for _, r in sub.iterrows():
-        vals = None
-        if r["valores"]:
-            try:
-                vals = json.loads(r["valores"])
-            except Exception:
-                vals = None
-        out[str(r["variable"]).lower()] = (r["etiqueta"], vals)
-    return out
-
-
-def tab_graficador(idx):
-    st.header("Graficador")
-    st.caption("Descarga una base de INEI y grafica cuántos casos hay en cada categoría.")
-    sel = selector_modulo(idx, "graf")
-    if not sel:
+# --- Pestaña 4: Indicadores ENAHO 2024 (pre-horneados, offline) -------------
+def tab_indicadores(ind):
+    st.header("Indicadores ENAHO 2024")
+    st.caption("Resultados reales de la Sumaria, ponderados con el factor de expansión. "
+               "Pre-calculados; no dependen de la red.")
+    if not ind or not ind.get("indicadores"):
+        st.info("Aún no hay indicadores. Corre `python ai/build_indicadores.py` para generarlos.")
         return
-    if st.button("Cargar base de INEI", key="graf_cargar"):
-        st.session_state["graf_sel"] = sel
-    selg = st.session_state.get("graf_sel")
-    if not selg:
-        return
-    try:
-        tablas = leer_modulo(selg["code"])
-    except Exception as e:
-        st.error(f"No se pudo descargar la base desde INEI: {e}. Reintenta más tarde.")
-        return
-    if not tablas:
-        st.warning("La base llegó vacía.")
-        return
-    df = tablas[st.selectbox("Tabla", list(tablas.keys()), key="graf_tabla")]
-    if df.empty:
-        st.warning("La tabla está vacía.")
-        return
+    indicadores = ind["indicadores"]
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        nombre = st.selectbox("Indicador", list(indicadores.keys()), key="ind_nombre")
+    item = indicadores[nombre]
+    with c2:
+        cortes = [k for k in ("Por dominio geográfico", "Por área") if item.get(k)]
+        corte = st.radio("Desglose", cortes, key="ind_corte")
 
-    meta = _meta_modulo(selg["coleccion"], selg["anio"], selg["modulo_code"])
+    es_pct = item.get("unidad") == "%"
+    nac = item.get("nacional")
+    if nac is not None:
+        st.metric("Nacional", f"{nac:.1f}%" if es_pct else f"S/. {nac:,.0f}")
 
-    def etq(c):
-        e = meta.get(str(c).lower(), (None, None))[0]
-        return f"{e}  ·  {c}" if e else str(c)
-
-    # Las variables con códigos (categóricas) van primero: son las que mejor se grafican.
-    cols = list(df.columns)
-    categoricas = [c for c in cols if meta.get(str(c).lower(), (None, None))[1]]
-    var = st.selectbox("Variable a graficar", categoricas + [c for c in cols if c not in categoricas],
-                       format_func=etq, key="graf_var")
-
-    # Traducir los códigos a su significado (1 -> hombre, 2 -> mujer) y contar los casos.
-    vals = meta.get(str(var).lower(), (None, None))[1]
-    xmap = {_cod_valor(k): v for k, v in vals.items()} if vals else {}
-
-    def etiqueta(v):
-        if pd.isna(v):
-            return None
-        e = xmap.get(_cod_valor(v), str(v)) if xmap else str(v)
-        return str(e).strip() or None
-
-    conteo = df[var].map(etiqueta).dropna().value_counts().head(20)
-    if conteo.empty:
-        st.warning("La variable no tiene datos para graficar.")
-        return
-    datos = pd.DataFrame({"categoría": conteo.index.astype(str), "casos": conteo.to_numpy()})
-    st.bar_chart(datos, x="categoría", y="casos")
-    st.caption(f"Número de casos por «{etq(var)}» (hasta 20 categorías).")
+    datos = item.get(corte, {})
+    serie = pd.DataFrame({"categoría": list(datos.keys()), nombre: list(datos.values())})
+    st.bar_chart(serie, x="categoría", y=nombre)
+    st.caption(ind.get("fuente", ""))
 
 
 # --- Pestaña 5: Descargas ---------------------------------------------------
@@ -552,13 +513,14 @@ def main():
     modulos = cargar_modulos()
     df = cargar_variables()
     cuest = cargar_cuestionarios()
+    ind = cargar_indicadores()
     idx = indice_descarga(tuple(sorted(resumen.get("alcance_demo", []))))
 
     institucion = sidebar_institucion()
 
     t1, t2, t3, t4, t5 = st.tabs(
         ["Inicio", "Explorador de módulos", "Diccionario de variables",
-         "Graficador", "Descargas"])
+         "Indicadores ENAHO 2024", "Descargas"])
     with t1:
         tab_inicio(resumen, institucion)
     with t2:
@@ -566,7 +528,7 @@ def main():
     with t3:
         tab_diccionario(df, cuest, modulos)
     with t4:
-        tab_graficador(idx)
+        tab_indicadores(ind)
     with t5:
         tab_descargas(idx)
 
