@@ -12,17 +12,22 @@ import re
 import sys
 import tempfile
 
+import matplotlib
 import pandas as pd
 import streamlit as st
 
+matplotlib.use("Agg")  # backend sin GUI: renderiza el gráfico a imagen
+import matplotlib.pyplot as plt  # noqa: E402
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(RAIZ, "data")
+MARCA = "Stats"  # nombre de marketing de la web
 sys.path.insert(0, os.path.join(RAIZ, "ai"))
 
 from comun import coleccion, fix_encoding, normaliza_modulo  # noqa: E402
 from sinopsis_modulos import sinopsis_de  # noqa: E402
 
-st.set_page_config(page_title="ENAHO Hub", page_icon="📊", layout="wide")
+st.set_page_config(page_title=MARCA, page_icon="📊", layout="wide")
 
 
 # --- Carga de metadata offline (cacheada) -----------------------------------
@@ -292,7 +297,7 @@ def selector_modulo(idx, prefijo):
 
 # --- Pestaña 1: Inicio ------------------------------------------------------
 def tab_inicio(resumen, institucion):
-    st.title("📊 ENAHO Hub")
+    st.title(f"📊 {MARCA}")
     st.subheader("Toda la Encuesta Nacional de Hogares, lista para investigar")
     if institucion:
         st.info(f"Sesión institucional: **{institucion}**")
@@ -423,6 +428,30 @@ def tab_diccionario(df, cuest, modulos):
 
 
 # --- Pestaña 4: Indicadores ENAHO 2024 (pre-horneados, offline) -------------
+def _figura_indicador(datos, titulo, color, horizontal, es_pct):
+    """Figura matplotlib del indicador, con etiquetas de valor y pie de marca."""
+    cats, vals = list(datos.keys()), list(datos.values())
+    fmt = (lambda v: f"{v:.1f}%") if es_pct else (lambda v: f"{v:,.0f}")
+    if horizontal:
+        cats, vals = cats[::-1], vals[::-1]  # el primero queda arriba
+        fig, ax = plt.subplots(figsize=(8.5, min(12, max(3.2, 0.42 * len(cats)))))
+        barras = ax.barh(cats, vals, color=color)
+        ax.set_xlabel(titulo)
+    else:
+        fig, ax = plt.subplots(figsize=(8.5, 5.2))
+        barras = ax.bar(cats, vals, color=color)
+        ax.set_ylabel(titulo)
+        plt.setp(ax.get_xticklabels(), rotation=40, ha="right", fontsize=8)
+    ax.bar_label(barras, labels=[fmt(v) for v in vals], padding=2, fontsize=8)
+    ax.set_title(titulo, fontsize=12, weight="bold")
+    for borde in ("top", "right"):
+        ax.spines[borde].set_visible(False)
+    fig.text(0.99, 0.01, f"Gráfico extraído de {MARCA}", ha="right", va="bottom",
+             fontsize=8, color="gray", style="italic")
+    fig.tight_layout(rect=(0, 0.03, 1, 1))
+    return fig
+
+
 def tab_indicadores(ind):
     st.header("Indicadores ENAHO 2024")
     st.caption("Resultados reales de la Sumaria, ponderados con el factor de expansión. "
@@ -436,7 +465,7 @@ def tab_indicadores(ind):
         nombre = st.selectbox("Indicador", list(indicadores.keys()), key="ind_nombre")
     item = indicadores[nombre]
     with c2:
-        cortes = [k for k in ("Por dominio geográfico", "Por área") if item.get(k)]
+        cortes = [k for k in item if k not in ("unidad", "nacional")]
         corte = st.radio("Desglose", cortes, key="ind_corte")
 
     es_pct = item.get("unidad") == "%"
@@ -444,9 +473,38 @@ def tab_indicadores(ind):
     if nac is not None:
         st.metric("Nacional", f"{nac:.1f}%" if es_pct else f"S/. {nac:,.0f}")
 
-    datos = item.get(corte, {})
-    serie = pd.DataFrame({"categoría": list(datos.keys()), nombre: list(datos.values())})
-    st.bar_chart(serie, x="categoría", y=nombre)
+    datos = dict(item.get(corte, {}))
+    if not datos:
+        st.warning("Sin datos para este desglose.")
+        return
+
+    o1, o2, o3 = st.columns(3)
+    color = o1.color_picker("Color de las barras", "#2563EB", key="ind_color")
+    horizontal = o2.toggle("Barras horizontales", value=len(datos) > 8, key="ind_h")
+    ordenar = o3.toggle("Ordenar por valor", value=True, key="ind_ord")
+    if ordenar:
+        datos = dict(sorted(datos.items(), key=lambda kv: kv[1], reverse=True))
+
+    fig = _figura_indicador(datos, nombre, color, horizontal, es_pct)
+    st.pyplot(fig)
+
+    archivo = re.sub(r'[\\/:*?"<>|]', "-", nombre)
+    buf_png = io.BytesIO()
+    fig.savefig(buf_png, format="png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    tabla = pd.DataFrame({"Categoría": list(datos.keys()), nombre: list(datos.values())})
+    buf_xlsx = io.BytesIO()
+    tabla.to_excel(buf_xlsx, index=False, sheet_name="Indicador")
+
+    d1, d2 = st.columns(2)
+    d1.download_button("Descargar gráfico (PNG)", buf_png.getvalue(),
+                       file_name=f"{archivo}.png", mime="image/png", key="ind_png")
+    d2.download_button("Descargar datos (Excel)", buf_xlsx.getvalue(),
+                       file_name=f"{archivo}.xlsx", key="ind_xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    with st.expander("Ver lista de datos"):
+        st.dataframe(tabla, hide_index=True, use_container_width=True)
     st.caption(ind.get("fuente", ""))
 
 
