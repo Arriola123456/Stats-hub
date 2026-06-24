@@ -3,12 +3,14 @@
 Descarga los cuestionarios de INEI en vivo, extrae el texto por página con pdfplumber
 (pymupdf como respaldo si pdfplumber no esta disponible; PaddleOCR como fallback OCR solo
 cuando una página escaneada no da texto) y mapea cada variable a su pregunta por el número:
-p301 -> pregunta 301, que se busca entre los formularios descargados (para el MVP,
-ENAHO.01 con la vivienda 100 y ENAHO.01A con educación 300, salud 400 y empleo 500). Si la
-pregunta aparece con claridad se mapea su página; si no (por ejemplo el roster del módulo
-200, que va en una grilla que el PDF no expone como texto), la variable queda sin mapear y
-la app ofrece el cuestionario completo. La Sumaria (módulo 34) y las variables derivadas no
-tienen pregunta: quedan sin cuestionario.
+p301 -> pregunta 301. Como las preguntas van en orden creciente a lo largo del cuestionario,
+se construyen anclas (número de pregunta -> página) por formulario, limpiando outliers
+(códigos y referencias sueltas) con una subsecuencia monótona, y se interpola la página de
+cada pregunta entre las anclas que la rodean (ENAHO.01 cubre la vivienda 100; ENAHO.01A la
+educación 300, salud 400 y empleo 500). Si la pregunta cae fuera del rango o en un hueco
+grande (por ejemplo el roster del módulo 200, que va en una grilla que el PDF no expone como
+texto), queda sin mapear y la app ofrece el cuestionario completo. La Sumaria (módulo 34) y
+las variables derivadas no tienen pregunta: quedan sin cuestionario.
 
 Salida data/cuestionario_paginas.json:
   { coleccion: { anio: { modulo_code: { variable: {forma, pdf, pagina} } } } }
@@ -170,32 +172,83 @@ def texto_por_pagina(ruta_pdf):
     return paginas, "pymupdf"
 
 
-def localizar(num, textos):
-    """Ubica la pregunta 'num' entre todos los formularios disponibles (alta precisión).
+# Numero de 3 digitos que abre una linea (con prefijo P/Nº/Pregunta opcional).
+ANCLA_RE = re.compile(r"(?m)^\s*(?:P\.?\s*|N[ºo°]\.?\s*|Pregunta\s*)?0*(\d{3})\b")
+GAP_MAX = 25  # hueco maximo entre anclas para confiar en la interpolacion de pagina
 
-    Prefiere una coincidencia fuerte (el número abre una línea: contexto de pregunta). Si no
-    hay fuerte pero sí una única coincidencia débil, la toma. Si la pregunta aparece suelta
-    en muchas páginas, o con fuerza en más de un formulario, no inventa: la deja sin mapear.
-    Devuelve (forma, pagina, tipo) con tipo en {fuerte, unico, ambiguo, ausente}.
+
+def _lnds(seq):
+    """Indices de la subsecuencia no decreciente mas larga (para descartar outliers)."""
+    n = len(seq)
+    if n == 0:
+        return []
+    dp = [1] * n
+    prev = [-1] * n
+    for i in range(n):
+        for j in range(i):
+            if seq[j] <= seq[i] and dp[j] + 1 > dp[i]:
+                dp[i] = dp[j] + 1
+                prev[i] = j
+    best = max(range(n), key=lambda i: dp[i])
+    out = []
+    while best != -1:
+        out.append(best)
+        best = prev[best]
+    return out[::-1]
+
+
+def construir_anclas(paginas):
+    """Anclas (numero_pregunta -> pagina) monotonas y limpias de un formulario.
+
+    Toma los numeros de 3 digitos (>=100) que abren linea y se queda con la cadena monotona
+    mas larga (el numero crece con la pagina), descartando codigos y referencias fuera de
+    orden. Devuelve una lista de (numero, pagina) ordenada por numero, sin repetidos.
     """
-    inicio = re.compile(r"(?m)^\s*(?:P\.?\s*|N[ºo°]\s*|Pregunta\s*)?0*%s\b" % re.escape(num))
-    suelto = re.compile(r"(?<!\d)0*%s(?!\d)" % re.escape(num))
-    fuertes, debiles = [], []
-    for forma, paginas in textos.items():
-        for i, t in enumerate(paginas):
-            if not t:
+    pts = []
+    for i, t in enumerate(paginas):
+        if not t:
+            continue
+        for s in set(ANCLA_RE.findall(t)):
+            num = int(s)
+            if num >= 100:
+                pts.append((num, i + 1))
+    pts.sort()  # por numero, luego pagina
+    anclas = [pts[i] for i in _lnds([p for _, p in pts])]
+    salida = []
+    for num, pag in anclas:
+        if not salida or salida[-1][0] != num:
+            salida.append((num, pag))
+    return salida
+
+
+def ubicar(num, anclas_por_forma):
+    """Mejor (forma, pagina, aprox) para la pregunta 'num' segun las anclas monotonas.
+
+    Interpola la pagina entre las anclas que rodean a 'num' (las preguntas van en orden).
+    Solo mapea si 'num' cae dentro del rango de un formulario y el hueco entre anclas es
+    pequeno; si no, no inventa. 'aprox' es True cuando la pagina es interpolada.
+    """
+    Q = int(num)
+    mejor = None  # (gap, forma, pagina, aprox)
+    for forma, anclas in anclas_por_forma.items():
+        if not anclas or Q < anclas[0][0] or Q > anclas[-1][0]:
+            continue
+        exacta = next((p for n, p in anclas if n == Q), None)
+        if exacta is not None:
+            cand = (0, forma, exacta, False)
+        else:
+            n_lo, p_lo = [(n, p) for n, p in anclas if n < Q][-1]
+            n_hi, p_hi = [(n, p) for n, p in anclas if n > Q][0]
+            gap = n_hi - n_lo
+            if gap > GAP_MAX:
                 continue
-            if inicio.search(t):
-                fuertes.append((forma, i + 1))
-            elif suelto.search(t):
-                debiles.append((forma, i + 1))
-    if fuertes:
-        if len({f for f, _ in fuertes}) == 1:  # todas las fuertes en un mismo formulario
-            return fuertes[0][0], fuertes[0][1], "fuerte"
-        return None, None, "ambiguo"  # pregunta fuerte en varios formularios
-    if len(debiles) == 1:
-        return debiles[0][0], debiles[0][1], "unico"
-    return None, None, ("ambiguo" if debiles else "ausente")
+            pagina = round(p_lo + (Q - n_lo) / (n_hi - n_lo) * (p_hi - p_lo))
+            cand = (gap, forma, pagina, True)
+        if mejor is None or cand[0] < mejor[0]:
+            mejor = cand
+    if mejor is None:
+        return None, None, None
+    return mejor[1], mejor[2], mejor[3]
 
 
 def copiar_muestra(pdfs, salida):
@@ -231,13 +284,17 @@ def main():
         except Exception as e:
             print("error leyendo ENAHO." + f, e)
 
+    anclas_por_forma = {f: construir_anclas(textos[f]) for f in textos}
+    for f, a in anclas_por_forma.items():
+        rango = f"{a[0][0]}..{a[-1][0]}" if a else "sin anclas"
+        print(f"forma ENAHO.{f}: {len(a)} anclas ({rango})")
+
     df = pd.read_parquet(os.path.join(DATA, "enaho_variables.parquet"))
     sub = df[(df.coleccion == COL_ACTUALIZADA) & (df.anio.isin(ANIOS))
              & (df.modulo_code.isin(MODULOS_MVP))].drop_duplicates(["modulo_code", "variable"])
 
     salida = {}
-    stats = {"mapeadas": 0, "sin_pregunta": 0, "no_mapeadas": 0, "dudosas": 0}
-    dudosas = []
+    stats = {"mapeadas": 0, "aprox": 0, "sin_pregunta": 0, "no_mapeadas": 0}
     memo = {}
     re_p = re.compile(r"^p(\d{3})", re.IGNORECASE)
     for _, row in sub.iterrows():
@@ -248,30 +305,31 @@ def main():
             continue
         num = m.group(1)
         if num not in memo:
-            memo[num] = localizar(num, textos)
-        forma, pag, tipo = memo[num]
+            memo[num] = ubicar(num, anclas_por_forma)
+        forma, pag, aprox = memo[num]
         if pag is None:
             stats["no_mapeadas"] += 1
-            if tipo == "ambiguo":
-                stats["dudosas"] += 1
-                dudosas.append((mod, var, num, "ambigua, sin pagina"))
             continue
         salida.setdefault(COL_ACTUALIZADA, {}).setdefault("2024", {}).setdefault(mod, {})[var] = {
             "forma": "ENAHO." + forma,
             "pdf": os.path.relpath(pdfs[forma], DATA).replace("\\", "/"),
-            "pagina": pag,
+            "pagina": int(pag),
+            "aprox": bool(aprox),
         }
         stats["mapeadas"] += 1
+        if aprox:
+            stats["aprox"] += 1
 
     copiar_muestra(pdfs, salida)
     with open(os.path.join(DATA, "cuestionario_paginas.json"), "w", encoding="utf-8") as f:
         json.dump(salida, f, ensure_ascii=False, indent=1)
 
     print("STATS:", stats)
-    if dudosas:
-        print(f"casos dudosos ({len(dudosas)}), muestra:")
-        for d in dudosas[:30]:
-            print("  ", d)
+    nodo = salida.get(COL_ACTUALIZADA, {}).get("2024", {})
+    for mod in sorted(nodo):
+        ej = [(v, d["pagina"], "aprox" if d["aprox"] else "exacta")
+              for v, d in list(nodo[mod].items())[:3]]
+        print(f"  {mod}: {len(nodo[mod])} mapeadas; ej: {ej}")
 
 
 if __name__ == "__main__":
