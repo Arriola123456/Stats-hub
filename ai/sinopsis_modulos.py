@@ -58,23 +58,24 @@ _EMPLEO = (
     "(variables p5xx)."
 )
 
-_GASTO = (
-    "Módulo de gasto del hogar. Registra los gastos por rubros (alimentos, vestido, "
-    "transporte, vivienda, esparcimiento, muebles, entre otros) y por forma de adquisición "
-    "(compra, autoconsumo, autosuministro o donación). Alimenta el gasto total del hogar que "
-    "consolida la Sumaria (módulo 34) (variables p6xx/p7xx)."
-)
+def _gasto(nombre):
+    """Sinopsis de gasto adaptada al rubro del módulo (para que cada uno sea distinto)."""
+    return (f"Gasto del hogar, rubro: {nombre}. Registra el gasto por producto y por forma de "
+            "adquisición (compra, autoconsumo, autosuministro o donación). Es insumo del gasto "
+            "total del hogar que consolida la Sumaria (módulo 34).")
+
+
+def _agro(nombre):
+    """Sinopsis agropecuaria adaptada al módulo."""
+    return (f"Actividad agropecuaria del hogar: {nombre}. Producción, subproductos o gastos de "
+            "la actividad agrícola, forestal o pecuaria. Captura ingreso y consumo no monetario, "
+            "clave en los hogares rurales.")
+
 
 _PROGRAMAS = (
     "Módulo de programas sociales. Participación y beneficios de los programas del Estado por "
     "miembro del hogar (Juntos, Pensión 65, Qali Warma, Vaso de Leche, comedores populares, "
     "Beca 18, entre otros). Permite medir cobertura y filtración de la política social."
-)
-
-_AGRO = (
-    "Módulo agropecuario. Producción agrícola, forestal y pecuaria del hogar, sus "
-    "subproductos y los gastos en estas actividades. Captura el ingreso y consumo no "
-    "monetario, clave en los hogares rurales."
 )
 
 _GOBERNABILIDAD = (
@@ -95,24 +96,25 @@ _REGLAS = [
     (("educacion",), _EDUCACION),
     (("salud",), _SALUD),
     (("empleo", "ingreso"), _EMPLEO),
-    (("agricola", "agropecu", "forestal", "pecuari", "subproducto"), _AGRO),
+    (("agricola", "agropecu", "forestal", "pecuari", "subproducto"), _agro),
     (("gobernabilidad", "democracia", "transparencia", "participacion ciudadana"), _GOBERNABILIDAD),
     (("alimentos", "vestido", "calzado", "transporte", "comunicaciones", "muebles",
       "enseres", "esparcimiento", "diversion", "cultura", "equipamiento", "mantenimiento",
-      "servicios a la vivienda", "otros bienes", "transferencias", "instituciones benefica"), _GASTO),
+      "servicios a la vivienda", "otros bienes", "transferencias", "instituciones benefica"), _gasto),
     (("miembros",), _MIEMBROS),
     (("vivienda", "hogar"), _VIVIENDA),
 ]
 
 
 def sinopsis_de(nombre_modulo):
-    """Devuelve la sinopsis en español del módulo cuyo nombre se pasa."""
+    """Devuelve la sinopsis en español del módulo. Algunas reglas (gasto, agro) adaptan el
+    texto al nombre del módulo para que cada uno sea distinto."""
     n = _norm(nombre_modulo)
     if not n:
         return _GENERICA
     for claves, texto in _REGLAS:
         if any(k in n for k in claves):
-            return texto
+            return texto(nombre_modulo) if callable(texto) else texto
     return _GENERICA
 
 
