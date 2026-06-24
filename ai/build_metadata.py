@@ -91,6 +91,7 @@ def construir_variables():
         nrows = b.get("n_rows")
         anio = str(b.get("year"))
         for v in b.get("variables", []):
+            vals = v.get("values")
             filas.append({
                 "variable": v.get("name"),
                 "etiqueta": fix_encoding(v.get("label")),
@@ -99,6 +100,7 @@ def construir_variables():
                 "coleccion": col,
                 "anio": anio,
                 "n_filas": nrows,
+                "valores": json.dumps(vals, ensure_ascii=False) if vals else None,
             })
     return pd.DataFrame(filas)
 

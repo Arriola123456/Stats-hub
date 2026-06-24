@@ -121,6 +121,15 @@ def _numero_pregunta(variable):
     return m.group(1) if m else None
 
 
+def _cod_valor(k):
+    """Muestra el código de valor sin el .0 sobrante ('1.0' -> '1')."""
+    try:
+        f = float(k)
+        return str(int(f)) if f.is_integer() else str(k)
+    except (TypeError, ValueError):
+        return str(k)
+
+
 @st.cache_data(show_spinner=False)
 def _pagina_con_pregunta(ruta, pagina_base, numero, total, zoom):
     """Renderiza la página resaltando la pregunta 'numero'.
@@ -162,12 +171,12 @@ def _pagina_con_pregunta(ruta, pagina_base, numero, total, zoom):
                            fill=(1, 0.9, 0.2), fill_opacity=0.3)
         except Exception:
             page.draw_rect(marca, color=(0.9, 0.35, 0), width=2)
-    if zoom and rect is not None:
+    if zoom and rect is not None and page.rotation == 0:
         clip = fitz.Rect(max(0, rect.x0 - 12), max(0, rect.y0 - 16),
                          min(page.rect.width, rect.x0 + page.rect.width * 0.5),
                          min(page.rect.height, rect.y0 + 320))
         png = page.get_pixmap(dpi=200, clip=clip).tobytes("png")
-    else:
+    else:  # paginas rotadas (roster) o sin zoom: pagina completa
         png = page.get_pixmap(dpi=170).tobytes("png")
     doc.close()
     return png, elegida, rect is not None
@@ -386,6 +395,17 @@ def tab_diccionario(df, cuest, modulos):
         st.write(f"**Módulo:** {fila['modulo']}  ({modulo_code})")
         st.write(f"**Colección:** {col}")
         st.write(f"**Año:** {fila['anio']}   ·   **Registros del módulo:** {fila['n_filas']:,}")
+        vals_raw = fila.get("valores")
+        if vals_raw:
+            try:
+                vals = json.loads(vals_raw)
+            except Exception:
+                vals = None
+            if vals:
+                st.markdown("**Valores (códigos):**")
+                st.dataframe(pd.DataFrame({"Código": [_cod_valor(k) for k in vals],
+                                          "Etiqueta": list(vals.values())}),
+                             hide_index=True, use_container_width=True)
         otros = [m for m in df[df["variable"] == var_sel]["modulo"].drop_duplicates().tolist()
                  if m != fila["modulo"]]
         if otros:

@@ -1114,6 +1114,84 @@
     }
    },
    "Modulo02": {
+    "p203": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p203a": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p203b": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p204": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p205": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p206": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p207": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p208a": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p208b": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p209": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p210": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p211a": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p211d": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
     "p212": {
      "forma": "ENAHO.01",
      "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
@@ -3023,6 +3101,48 @@
      "pdf": "cuestionarios/extract/14_Cuestionario_Enaho01A.pdf",
      "pagina": 5,
      "aprox": false
+    },
+    "p203": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p204": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p205": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p206": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p207": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p208a": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p209": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
     }
    },
    "Modulo04": {
@@ -6158,6 +6278,54 @@
      "pagina": 11,
      "aprox": false
     },
+    "P203": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "P204": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "P205": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "P206": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "P207": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "P208A": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "P208B": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "P209": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
     "P301A": {
      "forma": "ENAHO.01A",
      "pdf": "cuestionarios/extract/14_Cuestionario_Enaho01A.pdf",
@@ -9093,6 +9261,48 @@
      "pdf": "cuestionarios/extract/14_Cuestionario_Enaho01A.pdf",
      "pagina": 20,
      "aprox": false
+    },
+    "p203": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p204": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p205": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p206": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p207": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 6,
+     "aprox": true
+    },
+    "p208a": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
+    },
+    "p209": {
+     "forma": "ENAHO.01",
+     "pdf": "cuestionarios/extract/13_Cuestionario_Enaho01.pdf",
+     "pagina": 7,
+     "aprox": true
     },
     "p301a": {
      "forma": "ENAHO.01A",

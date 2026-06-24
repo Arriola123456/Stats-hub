@@ -200,15 +200,18 @@ def _lnds(seq):
 def construir_anclas(paginas):
     """Anclas (numero_pregunta -> pagina) monotonas y limpias de un formulario.
 
-    Toma los numeros de 3 digitos (>=100) que abren linea y se queda con la cadena monotona
-    mas larga (el numero crece con la pagina), descartando codigos y referencias fuera de
-    orden. Devuelve una lista de (numero, pagina) ordenada por numero, sin repetidos.
+    Toma los numeros de 3 digitos (>=100) que abren linea, mas los numeros 2xx del roster
+    de miembros (que va en grillas rotadas, sin inicio de linea claro), y se queda con la
+    cadena monotona mas larga (el numero crece con la pagina), descartando codigos y
+    referencias fuera de orden. Devuelve (numero, pagina) ordenada por numero, sin repetidos.
     """
     pts = []
     for i, t in enumerate(paginas):
         if not t:
             continue
-        for s in set(ANCLA_RE.findall(t)):
+        nums = set(ANCLA_RE.findall(t))
+        nums |= set(re.findall(r"\b(2[0-2]\d)\b", t))  # roster de miembros (modulo 200)
+        for s in nums:
             num = int(s)
             if num >= 100:
                 pts.append((num, i + 1))
