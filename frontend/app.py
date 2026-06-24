@@ -200,28 +200,48 @@ def _agregar_por_variable(dff):
     return out.sort_values("apariciones", ascending=False)
 
 
-def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
-    """Muestra la pagina del cuestionario si hay mapeo; si no, el enlace completo.
+@st.cache_data(show_spinner=False)
+def _render_pagina(pdf_rel, pagina):
+    """Rasteriza una página del PDF local a PNG (bytes). None si el PDF no está disponible."""
+    if not pdf_rel:
+        return None
+    ruta = os.path.join(DATA, pdf_rel)
+    if not os.path.exists(ruta):
+        return None
+    try:
+        import fitz
+        doc = fitz.open(ruta)
+        png = doc[pagina - 1].get_pixmap(dpi=150).tobytes("png")
+        doc.close()
+        return png
+    except Exception:
+        return None
 
-    El render de la imagen se completa en la Fase 4; aqui queda el lookup y el fallback.
-    """
-    mapeo = (cuest.get(col, {}).get(anio, {}).get(modulo_code, {}) or {}).get(variable)
+
+def _visor_cuestionario(cuest, modulos, col, anio, modulo_code, variable):
+    """Muestra la página exacta del cuestionario si hay mapeo; si no, el enlace completo."""
     st.markdown("#### Cuestionario")
+    mapeo = (cuest.get(col, {}).get(anio, {}).get(modulo_code, {}) or {}).get(variable)
     if mapeo and mapeo.get("pagina"):
-        st.write(f"Pregunta en **{mapeo.get('pdf','cuestionario')}**, "
-                 f"página **{mapeo['pagina']}**.")
-        png = mapeo.get("png")
-        if png and os.path.exists(os.path.join(DATA, png)):
-            st.image(os.path.join(DATA, png), use_container_width=True)
-        else:
-            st.caption("Imagen de la página pendiente de generar (Fase 4).")
-        return
-    # Fallback: enlace al cuestionario completo del modulo/anio.
+        png = _render_pagina(mapeo.get("pdf"), mapeo["pagina"])
+        if png is None:  # PDF no presente: intenta el PDF de muestra si coincide la forma
+            muestra = cuest.get("_muestra") or {}
+            if muestra.get("forma") == mapeo.get("forma"):
+                png = _render_pagina(muestra.get("pdf"), mapeo["pagina"])
+        if png is not None:
+            st.write(f"Pregunta en **{mapeo.get('forma', 'cuestionario')}**, "
+                     f"página **{mapeo['pagina']}**.")
+            st.image(png, use_container_width=True)
+            return
+        st.info(f"Mapeada a {mapeo.get('forma')} página {mapeo['pagina']}, pero el PDF no "
+                "está disponible en este equipo. Cuestionario completo:")
+    else:
+        st.caption("Esta variable no tiene una pregunta mapeada (puede ser derivada o "
+                   "calculada, o estar en una grilla del cuestionario). Cuestionario completo "
+                   "del módulo:")
     docs = (modulos.get(col, {}).get(anio, {}) or {}).get("docs", [])
     cues = [d for d in docs if d.get("url") and (d.get("doc_name") or "").startswith("Cuestionario")]
     if cues:
-        st.write("Esta variable no tiene una pregunta mapeada (puede ser derivada o "
-                 "calculada). Cuestionarios del módulo:")
         for d in cues:
             st.markdown(f"- [{d['doc_name']}]({d['url']})")
     else:
