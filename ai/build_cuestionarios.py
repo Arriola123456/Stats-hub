@@ -172,9 +172,19 @@ def texto_por_pagina(ruta_pdf):
     return paginas, "pymupdf"
 
 
-# Numero de 3 digitos que abre una linea (con prefijo P/Nº/Pregunta opcional).
-ANCLA_RE = re.compile(r"(?m)^\s*(?:P\.?\s*|N[ºo°]\.?\s*|Pregunta\s*)?0*(\d{3})\b")
-GAP_MAX = 25  # hueco maximo entre anclas para confiar en la interpolacion de pagina
+# Pregunta al inicio de linea: 3 digitos + letra opcional (106, 106A). Prefijo P/Nº opcional.
+ANCLA_RE = re.compile(r"(?m)^\s*(?:P\.?\s*|N[ºo°]\.?\s*|Pregunta\s*)?0*(\d{3})([A-Za-z]?)(?![A-Za-z\d])")
+# Roster de miembros (modulo 200) en grillas: 2xx + letra opcional, en cualquier lado.
+ROSTER_RE = re.compile(r"\b(2[0-2]\d)([A-Za-z]?)(?![A-Za-z\d])")
+GAP_MAX = 2500  # hueco maximo entre claves (= 25 numeros de pregunta) para interpolar
+
+
+def clave(num, letra=""):
+    """Clave ordenable de una pregunta: 106 -> 10600, 106A -> 10601, 107 -> 10700.
+
+    Mete la letra en el orden (A=1..Z=26) para que 106 < 106A < 106B < 107.
+    """
+    return int(num) * 100 + (ord(letra.upper()) - 64 if letra else 0)
 
 
 def _lnds(seq):
@@ -198,54 +208,51 @@ def _lnds(seq):
 
 
 def construir_anclas(paginas):
-    """Anclas (numero_pregunta -> pagina) monotonas y limpias de un formulario.
+    """Anclas (clave_pregunta -> pagina) monotonas y limpias de un formulario.
 
-    Toma los numeros de 3 digitos (>=100) que abren linea, mas los numeros 2xx del roster
-    de miembros (que va en grillas rotadas, sin inicio de linea claro), y se queda con la
-    cadena monotona mas larga (el numero crece con la pagina), descartando codigos y
-    referencias fuera de orden. Devuelve (numero, pagina) ordenada por numero, sin repetidos.
+    Toma las preguntas (3 digitos + letra opcional, >=100) que abren linea, mas las 2xx del
+    roster de miembros (que va en grillas), las convierte a su clave ordenable y se queda con
+    la cadena monotona mas larga (la clave crece con la pagina), descartando codigos y
+    referencias fuera de orden. Devuelve (clave, pagina) ordenada por clave, sin repetidas.
     """
     pts = []
     for i, t in enumerate(paginas):
         if not t:
             continue
-        nums = set(ANCLA_RE.findall(t))
-        nums |= set(re.findall(r"\b(2[0-2]\d)\b", t))  # roster de miembros (modulo 200)
-        for s in nums:
-            num = int(s)
-            if num >= 100:
-                pts.append((num, i + 1))
-    pts.sort()  # por numero, luego pagina
+        crudos = set(ANCLA_RE.findall(t)) | set(ROSTER_RE.findall(t))
+        for num, letra in crudos:
+            if int(num) >= 100:
+                pts.append((clave(num, letra), i + 1))
+    pts.sort()  # por clave, luego pagina
     anclas = [pts[i] for i in _lnds([p for _, p in pts])]
     salida = []
-    for num, pag in anclas:
-        if not salida or salida[-1][0] != num:
-            salida.append((num, pag))
+    for cl, pag in anclas:
+        if not salida or salida[-1][0] != cl:
+            salida.append((cl, pag))
     return salida
 
 
-def ubicar(num, anclas_por_forma):
-    """Mejor (forma, pagina, aprox) para la pregunta 'num' segun las anclas monotonas.
+def ubicar(cl_q, anclas_por_forma):
+    """Mejor (forma, pagina, aprox) para la clave de pregunta 'cl_q' segun las anclas.
 
-    Interpola la pagina entre las anclas que rodean a 'num' (las preguntas van en orden).
-    Solo mapea si 'num' cae dentro del rango de un formulario y el hueco entre anclas es
-    pequeno; si no, no inventa. 'aprox' es True cuando la pagina es interpolada.
+    Interpola la pagina entre las anclas que rodean a la pregunta (van en orden). Solo mapea
+    si la clave cae dentro del rango de un formulario y el hueco entre anclas es pequeno; si
+    no, no inventa. 'aprox' es True cuando la pagina es interpolada.
     """
-    Q = int(num)
     mejor = None  # (gap, forma, pagina, aprox)
     for forma, anclas in anclas_por_forma.items():
-        if not anclas or Q < anclas[0][0] or Q > anclas[-1][0]:
+        if not anclas or cl_q < anclas[0][0] or cl_q > anclas[-1][0]:
             continue
-        exacta = next((p for n, p in anclas if n == Q), None)
+        exacta = next((p for c, p in anclas if c == cl_q), None)
         if exacta is not None:
             cand = (0, forma, exacta, False)
         else:
-            n_lo, p_lo = [(n, p) for n, p in anclas if n < Q][-1]
-            n_hi, p_hi = [(n, p) for n, p in anclas if n > Q][0]
-            gap = n_hi - n_lo
+            c_lo, p_lo = [(c, p) for c, p in anclas if c < cl_q][-1]
+            c_hi, p_hi = [(c, p) for c, p in anclas if c > cl_q][0]
+            gap = c_hi - c_lo
             if gap > GAP_MAX:
                 continue
-            pagina = round(p_lo + (Q - n_lo) / (n_hi - n_lo) * (p_hi - p_lo))
+            pagina = round(p_lo + (cl_q - c_lo) / (c_hi - c_lo) * (p_hi - p_lo))
             cand = (gap, forma, pagina, True)
         if mejor is None or cand[0] < mejor[0]:
             mejor = cand
@@ -289,8 +296,8 @@ def main():
 
     anclas_por_forma = {f: construir_anclas(textos[f]) for f in textos}
     for f, a in anclas_por_forma.items():
-        rango = f"{a[0][0]}..{a[-1][0]}" if a else "sin anclas"
-        print(f"forma ENAHO.{f}: {len(a)} anclas ({rango})")
+        rango = f"{a[0][0] // 100}..{a[-1][0] // 100}" if a else "sin anclas"
+        print(f"forma ENAHO.{f}: {len(a)} anclas (preguntas {rango})")
 
     df = pd.read_parquet(os.path.join(DATA, "enaho_variables.parquet"))
     sub = df[(df.coleccion == COL_ACTUALIZADA) & (df.anio.isin(ANIOS))
@@ -299,17 +306,17 @@ def main():
     salida = {}
     stats = {"mapeadas": 0, "aprox": 0, "sin_pregunta": 0, "no_mapeadas": 0}
     memo = {}
-    re_p = re.compile(r"^p(\d{3})", re.IGNORECASE)
+    re_p = re.compile(r"^[pP](\d{3})([A-Za-z])?")
     for _, row in sub.iterrows():
         var, mod = row["variable"], row["modulo_code"]
         m = re_p.match(str(var))
         if not m:
             stats["sin_pregunta"] += 1
             continue
-        num = m.group(1)
-        if num not in memo:
-            memo[num] = ubicar(num, anclas_por_forma)
-        forma, pag, aprox = memo[num]
+        cl_q = clave(m.group(1), m.group(2) or "")
+        if cl_q not in memo:
+            memo[cl_q] = ubicar(cl_q, anclas_por_forma)
+        forma, pag, aprox = memo[cl_q]
         if pag is None:
             stats["no_mapeadas"] += 1
             continue

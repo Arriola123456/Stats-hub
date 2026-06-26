@@ -126,12 +126,15 @@ def _render_pagina(ruta, pagina):
     return png
 
 
-_RE_NUMPREG = re.compile(r"^[pP](\d{3})")
+_RE_NUMPREG = re.compile(r"^[pP](\d{3})([A-Za-z])?")
 
 
 def _numero_pregunta(variable):
+    """Etiqueta de la pregunta con su letra: p106 -> '106', p106a -> '106A'."""
     m = _RE_NUMPREG.match(str(variable))
-    return m.group(1) if m else None
+    if not m:
+        return None
+    return m.group(1) + (m.group(2).upper() if m.group(2) else "")
 
 
 def _cod_valor(k):
@@ -153,8 +156,8 @@ def _pagina_con_pregunta(ruta, pagina_base, numero, total, zoom):
     import fitz
 
     def coincide(w):
-        t = w.strip(".)-º°:() ")
-        return numero is not None and t in (numero, "P" + numero, "p" + numero)
+        t = w.strip(".)-º°:() ").upper()
+        return numero is not None and t in (numero, "P" + numero)
 
     doc = fitz.open(ruta)
 
