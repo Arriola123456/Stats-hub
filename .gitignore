@@ -21,3 +21,14 @@ data/cuestionarios/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Intermedios de LaTeX (el deck se versiona como .tex y .pdf)
+docs/*.aux
+docs/*.log
+docs/*.nav
+docs/*.out
+docs/*.snm
+docs/*.toc
+docs/*.fls
+docs/*.fdb_latexmk
+docs/*.synctex.gz
