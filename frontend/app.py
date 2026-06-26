@@ -435,18 +435,23 @@ def tab_diccionario(df, cuest, modulos):
 def _figura_indicador(datos, titulo, color, horizontal, es_pct):
     """Figura matplotlib del indicador, con etiquetas de valor y pie de marca."""
     cats, vals = list(datos.keys()), list(datos.values())
+    n = len(cats)
     fmt = (lambda v: f"{v:.1f}%") if es_pct else (lambda v: f"{v:,.0f}")
     if horizontal:
         cats, vals = cats[::-1], vals[::-1]  # el primero queda arriba
-        fig, ax = plt.subplots(figsize=(8.5, min(12, max(3.2, 0.42 * len(cats)))))
+        fig, ax = plt.subplots(figsize=(8.5, min(12, max(3.2, 0.42 * n))))
         barras = ax.barh(cats, vals, color=color)
         ax.set_xlabel(titulo)
+        lab_rot, lab_fs = 0, (7 if n > 15 else 8)
     else:
-        fig, ax = plt.subplots(figsize=(8.5, 5.2))
+        fig, ax = plt.subplots(figsize=(max(8.5, 0.5 * n), 5.6))
         barras = ax.bar(cats, vals, color=color)
         ax.set_ylabel(titulo)
-        plt.setp(ax.get_xticklabels(), rotation=40, ha="right", fontsize=8)
-    ax.bar_label(barras, labels=[fmt(v) for v in vals], padding=2, fontsize=8)
+        rot = 90 if n > 12 else 40
+        plt.setp(ax.get_xticklabels(), rotation=rot,
+                 ha=("center" if rot == 90 else "right"), fontsize=(7 if n > 12 else 8))
+        lab_rot, lab_fs = (90 if n > 12 else 0), (7 if n > 12 else 8)
+    ax.bar_label(barras, labels=[fmt(v) for v in vals], padding=2, fontsize=lab_fs, rotation=lab_rot)
     ax.set_title(titulo, fontsize=12, weight="bold")
     for borde in ("top", "right"):
         ax.spines[borde].set_visible(False)
@@ -484,7 +489,11 @@ def tab_indicadores(ind):
 
     o1, o2, o3 = st.columns(3)
     color = o1.color_picker("Color de las barras", "#2563EB", key="ind_color")
-    horizontal = o2.toggle("Barras horizontales", value=len(datos) > 8, key="ind_h")
+    if "departamento" in corte.lower():
+        o2.caption("Nivel departamental: vertical")
+        horizontal = False
+    else:
+        horizontal = o2.toggle("Barras horizontales", value=len(datos) > 8, key="ind_h")
     ordenar = o3.toggle("Ordenar por valor", value=True, key="ind_ord")
     if ordenar:
         datos = dict(sorted(datos.items(), key=lambda kv: kv[1], reverse=True))
