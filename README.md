@@ -4,7 +4,7 @@
 módulos, busca entre más de 70 mil variables, consulta indicadores listos y descarga bases
 para Stata, Python o SPSS, con el cuestionario abierto en la página exacta de cada variable.
 
-**Demo en vivo:** _pendiente de desplegar — ver [Despliegue](#despliegue-demo-en-vivo)._
+**Demo en vivo:** <https://stats-demo.streamlit.app/>
 (Stats es el nombre del producto; el repositorio se llama ENAHO Hub.)
 
 ## Problema

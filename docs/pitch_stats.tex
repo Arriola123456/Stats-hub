@@ -158,13 +158,17 @@
 \begin{frame}{Demo en vivo}
   \begin{columns}[T]
     \begin{column}{0.5\textwidth}
-      \vspace{0.6cm}
-      \impacto{$\rightarrow$ Demostración en vivo}\par
       \vspace{0.5cm}
+      \impacto{$\rightarrow$ Demostración en vivo}\par
+      \vspace{0.4cm}
       Indicadores reales de la ENAHO 2024, ponderados con el factor de expansión, por
       \textbf{departamento}, descargables como imagen o Excel.\par
-      \vspace{0.4cm}
-      {\small\color{GrisSuave}Demo: \textit{URL pública (Streamlit Cloud)}\\ Plan B: video de respaldo.}
+      \vspace{0.45cm}
+      {\setlength{\fboxsep}{7pt}%
+       \href{https://stats-demo.streamlit.app/}{\colorbox{NaranjaStats}{\color{white}\textbf{Abrir demo en vivo}}}}\par
+      \vspace{0.25cm}
+      {\small\href{https://stats-demo.streamlit.app/}{\textcolor{AzulClaro}{\texttt{stats-demo.streamlit.app}}}}\\[3pt]
+      {\small\color{GrisSuave}Plan B: video de respaldo.}
     \end{column}
     \begin{column}{0.5\textwidth}
       \centering
@@ -200,18 +204,24 @@
 \end{frame}
 
 % ---------- Mercado ----------
-\begin{frame}{Mercado}
-  \begin{itemize}
-    \item \textbf{TAM:} usuarios de microdatos ENAHO en el Perú --- \textbf{97 universidades
-      licenciadas}, \textbf{$\sim$1,2 M de estudiantes}, sector público y cooperación.
-      \textbf{50--80 mil} usuarios potenciales.
-    \item \textbf{SAM:} $\sim$40--60 departamentos de economía / ciencias sociales con producción
-      académica, más unidades del sector público y ONGs.
-    \item \textbf{SOM (12 meses):} \textbf{8--15 cuentas institucionales} y $\sim$500--1\,000
-      usuarios. Cabeza de playa: UP, PUCP, ULIMA, UNMSM.
-  \end{itemize}
-  \vspace{0.3cm}
-  {\footnotesize\color{GrisSuave}Fuentes: SUNEDU (universidades y matrícula, 2023); RENACYT; INEI.}
+\begin{frame}{Mercado: de lo amplio a lo alcanzable}
+  \begin{center}
+  \setlength{\fboxsep}{6pt}
+  \colorbox{AzulStats}{\parbox{0.93\textwidth}{\centering\color{white}
+    \textbf{Mercado total}\; (todos los que usan la ENAHO en el Perú)\\[1pt]
+    \small 97 universidades licenciadas $\cdot$ $\sim$1,2 M de estudiantes $\cdot$ sector público y
+    cooperación $\;\Rightarrow\;$ \textbf{50--80 mil usuarios}}}\\[5pt]
+  \colorbox{AzulClaro}{\parbox{0.72\textwidth}{\centering\color{white}
+    \textbf{A quienes podemos servir hoy}\\[1pt]
+    \small Economía y ciencias sociales con tesis, más sector público y ONG
+    $\;\Rightarrow\;$ \textbf{$\sim$5--10 mil usuarios}}}\\[5pt]
+  \colorbox{NaranjaStats}{\parbox{0.66\textwidth}{\centering\color{white}
+    \textbf{Meta realista a 12 meses}\\[1pt]
+    \small \textbf{8--15 cuentas institucionales} $\cdot$ $\sim$500--1\,000 usuarios\\
+    Cabeza de playa: UP, PUCP, ULIMA, UNMSM}}
+  \end{center}
+  \vspace{0.15cm}
+  {\footnotesize\color{GrisSuave}TAM / SAM / SOM en jerga de negocios. \;Fuentes: SUNEDU (2023), RENACYT, INEI.}
 \end{frame}
 
 % ---------- Modelo de negocio ----------
