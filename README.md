@@ -14,6 +14,10 @@ en decenas de módulos, tres metodologías, varios formatos y casi 30 años, con
 incómoda y más de 70 mil variables. Encontrar una variable, saber en qué módulo y año está y
 bajar la base correcta toma horas. Y el portal de INEI a veces no responde.
 
+**Validación:** lo confirmamos con investigadores reales de la UP y el CIUP (ver
+[`docs/research/entrevistas_validacion.md`](docs/research/entrevistas_validacion.md)): 2 de 2
+usan la ENAHO, pierden tiempo en el portal de INEI y pagarían por ahorrarlo.
+
 ## Solución
 Stats ordena esa data pública y la sirve desde una capa de metadata pre-horneada que
 funciona OFFLINE:
