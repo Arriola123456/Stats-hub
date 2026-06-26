@@ -85,6 +85,11 @@ pública).
 **Moat:** la capa de metadata curada y, sobre todo, el mapeo **variable → página exacta del
 cuestionario** (un dataset propio difícil de replicar), más la marca y la comunidad de usuarios.
 
+**Visión regional.** El modelo se replica en toda LATAM: cada país tiene su encuesta nacional
+de hogares, igual de fragmentada (CASEN en Chile, ENIGH en México, GEIH en Colombia, EPH en
+Argentina, PNAD en Brasil, ECH en Uruguay). Stats puede ser la capa que ordena los datos
+públicos de Latinoamérica.
+
 Fuentes: SUNEDU (universidades licenciadas y matrícula, 2023); RENACYT/CONCYTEC (registro de
 investigadores); INEI (ENAHO).
 
