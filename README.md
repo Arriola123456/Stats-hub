@@ -135,6 +135,9 @@ Para publicar:
 4. Copiar la URL resultante arriba, en **Demo en vivo**.
 
 ## Arquitectura
+
+![Arquitectura de Stats](docs/arquitectura.png)
+
 Principio: la metadata y los indicadores se sirven OFFLINE desde archivos pre-horneados en
 `data/`, sin red, para que la demo no dependa de que INEI esté arriba. Solo las descargas
 usan el portal en vivo.

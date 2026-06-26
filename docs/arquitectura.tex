@@ -1,0 +1,67 @@
+% Diagrama de arquitectura de Stats (ENAHO Hub)
+% Compilar: pdflatex arquitectura.tex
+\documentclass[border=18pt]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning}
+
+\definecolor{AzulStats}{RGB}{15,76,129}
+\definecolor{AzulClaro}{RGB}{46,117,182}
+\definecolor{NaranjaStats}{RGB}{238,125,34}
+\definecolor{AzulSuave}{RGB}{233,240,248}
+\definecolor{NaranjaSuave}{RGB}{253,235,221}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  >={Stealth[length=3mm]},
+  box/.style={rounded corners=4pt, draw=AzulClaro, line width=0.9pt, fill=AzulSuave,
+    text=AzulStats, align=center, inner sep=8pt, text width=3.7cm, minimum height=2.9cm},
+  data/.style={rounded corners=4pt, draw=AzulStats, line width=0.9pt, fill=AzulStats,
+    text=white, align=center, inner sep=8pt, text width=3.7cm, minimum height=2.9cm},
+  src/.style={rounded corners=4pt, draw=NaranjaStats, line width=0.9pt, fill=NaranjaSuave,
+    text=AzulStats, align=center, inner sep=7pt, text width=3.1cm},
+  user/.style={circle, draw=AzulStats, line width=0.9pt, fill=white, text=AzulStats,
+    align=center, inner sep=3pt, minimum size=2cm},
+  flow/.style={->, line width=1pt, AzulClaro},
+  lbl/.style={font=\sffamily\scriptsize, text=AzulClaro, fill=white, inner sep=1.5pt},
+]
+
+% --- Fuentes externas ---
+\node[src] (inei) {\textbf{Portal INEI}\\[1pt]\scriptsize microdatos};
+\node[src, below=9mm of inei] (pkg) {\textbf{inei-microdatos}\\[1pt]\scriptsize catálogo e índice (offline)};
+
+% --- Pipeline ---
+\node[box, right=15mm of inei, yshift=-10mm] (ai)
+  {\textbf{Horneado offline}\\ \texttt{ai/}\\[4pt]\scriptsize build\_metadata\\ build\_cuestionarios\\ \textit{pdfplumber + PaddleOCR}\\ build\_indicadores};
+\node[data, right=13mm of ai] (data)
+  {\textbf{Capa de datos}\\ \texttt{data/}\\[4pt]\scriptsize parquet $\cdot$ json.gz\\ cuestionario\_paginas\\ indicadores $\cdot$ PDFs};
+\node[box, right=13mm of data] (app)
+  {\textbf{App Streamlit}\\ \texttt{frontend/app.py}\\[4pt]\scriptsize Inicio $\cdot$ Explorador\\ Diccionario + Visor\\ Indicadores $\cdot$ Descargas};
+\node[user, right=13mm of app] (user) {\scriptsize\textbf{Usuario}\\[1pt]\scriptsize navegador};
+
+% --- Despliegue ---
+\node[src, below=18mm of data, xshift=-15mm, text width=2.7cm] (gh) {\textbf{GitHub}\\[1pt]\scriptsize Stats-hub};
+\node[src, right=13mm of gh, text width=3.1cm] (cloud) {\textbf{Streamlit Cloud}\\[1pt]\scriptsize despliegue};
+
+% --- Flechas del pipeline ---
+\draw[flow] (pkg.east) -- (ai.west);
+\draw[flow] (inei.east) -- (ai.west);
+\draw[flow] (ai) -- (data);
+\draw[flow, AzulStats] (data) -- node[lbl]{offline, cacheado} (app);
+\draw[flow, AzulStats] (app) -- (user);
+
+% --- Descarga en vivo (arco superior, naranja) ---
+\draw[->, line width=1pt, NaranjaStats, dashed]
+  (app.north) .. controls +(0,1.6) and +(0,1.6) .. node[lbl, text=NaranjaStats]{Descargas: en vivo a INEI} (inei.north);
+
+% --- Despliegue (abajo) ---
+\draw[->, line width=0.8pt, AzulStats] (data.south) |- (gh.west);
+\draw[->, line width=0.8pt, AzulStats] (gh) -- (cloud);
+\draw[->, line width=0.8pt, AzulStats, dashed] (cloud.east) -| node[lbl, pos=0.25]{sirve la app} (app.south);
+
+\end{tikzpicture}
+\end{document}
