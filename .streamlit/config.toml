@@ -1,0 +1,7 @@
+# Tema de marca de Stats (azul navy + naranja, del logo).
+[theme]
+primaryColor = "#EE7D22"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#E9F0F8"
+textColor = "#13334D"
+font = "sans serif"

@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(RAIZ, "data")
 MARCA = "Stats"  # nombre de marketing de la web
+LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_stats.png")
 sys.path.insert(0, os.path.join(RAIZ, "ai"))
 
 from comun import coleccion, fix_encoding, normaliza_modulo  # noqa: E402
@@ -297,7 +298,10 @@ def selector_modulo(idx, prefijo):
 
 # --- Pestaña 1: Inicio ------------------------------------------------------
 def tab_inicio(resumen, institucion):
-    st.title(f"📊 {MARCA}")
+    if os.path.exists(LOGO):
+        st.image(LOGO, width=280)
+    else:
+        st.title(f"📊 {MARCA}")
     st.subheader("Toda la Encuesta Nacional de Hogares, lista para investigar")
     if institucion:
         st.info(f"Sesión institucional: **{institucion}**")
@@ -567,6 +571,8 @@ def tab_descargas(idx):
 
 # --- Main -------------------------------------------------------------------
 def main():
+    if os.path.exists(LOGO):
+        st.logo(LOGO, size="large")
     resumen = cargar_resumen()
     modulos = cargar_modulos()
     df = cargar_variables()
