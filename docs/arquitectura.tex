@@ -1,12 +1,12 @@
-% Diagrama de arquitectura de Stats (ENAHO Hub)
+% Diagrama de arquitectura de Stats (ENAHO Hub) - dos pasos, flujo simple
 % Compilar: pdflatex arquitectura.tex
-\documentclass[border=18pt]{standalone}
+\documentclass[border=16pt]{standalone}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{helvet}
 \renewcommand{\familydefault}{\sfdefault}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta, positioning}
+\usetikzlibrary{arrows.meta, positioning, fit, backgrounds}
 
 \definecolor{AzulStats}{RGB}{15,76,129}
 \definecolor{AzulClaro}{RGB}{46,117,182}
@@ -17,51 +17,44 @@
 \begin{document}
 \begin{tikzpicture}[
   font=\sffamily,
-  >={Stealth[length=3mm]},
-  box/.style={rounded corners=4pt, draw=AzulClaro, line width=0.9pt, fill=AzulSuave,
-    text=AzulStats, align=center, inner sep=8pt, text width=3.7cm, minimum height=2.9cm},
-  data/.style={rounded corners=4pt, draw=AzulStats, line width=0.9pt, fill=AzulStats,
-    text=white, align=center, inner sep=8pt, text width=3.7cm, minimum height=2.9cm},
-  src/.style={rounded corners=4pt, draw=NaranjaStats, line width=0.9pt, fill=NaranjaSuave,
-    text=AzulStats, align=center, inner sep=7pt, text width=3.1cm},
-  user/.style={circle, draw=AzulStats, line width=0.9pt, fill=white, text=AzulStats,
-    align=center, inner sep=3pt, minimum size=2cm},
-  flow/.style={->, line width=1pt, AzulClaro},
-  lbl/.style={font=\sffamily\scriptsize, text=AzulClaro, fill=white, inner sep=1.5pt},
+  >={Stealth[length=3.6mm]},
+  caja/.style={rounded corners=5pt, draw=AzulClaro, line width=1pt, fill=AzulSuave,
+    text=AzulStats, align=center, inner sep=8pt, text width=3.6cm, minimum height=2.5cm},
+  fuente/.style={rounded corners=5pt, draw=NaranjaStats, line width=1pt, fill=NaranjaSuave,
+    text=AzulStats, align=center, inner sep=8pt, text width=3.6cm, minimum height=2.5cm},
+  datos/.style={rounded corners=5pt, draw=AzulStats, line width=1.3pt, fill=AzulStats,
+    text=white, align=center, inner sep=8pt, text width=3.6cm, minimum height=2.5cm},
+  user/.style={circle, draw=AzulStats, line width=1pt, fill=white, text=AzulStats,
+    align=center, inner sep=2pt, minimum size=2.3cm},
+  flecha/.style={->, line width=1.6pt, AzulStats},
 ]
 
-% --- Fuentes externas ---
-\node[src] (inei) {\textbf{Portal INEI}\\[1pt]\scriptsize microdatos};
-\node[src, below=9mm of inei] (pkg) {\textbf{inei-microdatos}\\[1pt]\scriptsize catálogo e índice (offline)};
+% --- Fila 1: se hornea una vez ---
+\node[fuente] (src) {\textbf{Datos públicos}\\[3pt]\small INEI y el paquete\\ \texttt{inei-microdatos}};
+\node[caja, right=16mm of src] (ai) {\textbf{Procesamiento}\\[3pt]\small mapea cada variable\\ a su página y calcula\\ los indicadores};
+\node[datos, right=16mm of ai] (data) {\textbf{\texttt{data/}}\\[3pt]\small la capa ya lista:\\ diccionario, cuestionarios\\ e indicadores};
 
-% --- Pipeline ---
-\node[box, right=15mm of inei, yshift=-10mm] (ai)
-  {\textbf{Horneado offline}\\ \texttt{ai/}\\[4pt]\scriptsize build\_metadata\\ build\_cuestionarios\\ \textit{pdfplumber + PaddleOCR}\\ build\_indicadores};
-\node[data, right=13mm of ai] (data)
-  {\textbf{Capa de datos}\\ \texttt{data/}\\[4pt]\scriptsize parquet $\cdot$ json.gz\\ cuestionario\_paginas\\ indicadores $\cdot$ PDFs};
-\node[box, right=13mm of data] (app)
-  {\textbf{App Streamlit}\\ \texttt{frontend/app.py}\\[4pt]\scriptsize Inicio $\cdot$ Explorador\\ Diccionario + Visor\\ Indicadores $\cdot$ Descargas};
-\node[user, right=13mm of app] (user) {\scriptsize\textbf{Usuario}\\[1pt]\scriptsize navegador};
+% --- Fila 2: cada visita ---
+\node[caja, below=24mm of data] (app) {\textbf{App Stats} (web)\\[3pt]\small lee la capa lista,\\ sin tocar la red};
+\node[user, right=15mm of app] (usr) {\textbf{Usuario}};
 
-% --- Despliegue ---
-\node[src, below=18mm of data, xshift=-15mm, text width=2.7cm] (gh) {\textbf{GitHub}\\[1pt]\scriptsize Stats-hub};
-\node[src, right=13mm of gh, text width=3.1cm] (cloud) {\textbf{Streamlit Cloud}\\[1pt]\scriptsize despliegue};
+\draw[flecha] (src) -- (ai);
+\draw[flecha] (ai) -- (data);
+\draw[flecha] (data) -- (app);
+\draw[flecha] (app) -- (usr);
 
-% --- Flechas del pipeline ---
-\draw[flow] (pkg.east) -- (ai.west);
-\draw[flow] (inei.east) -- (ai.west);
-\draw[flow] (ai) -- (data);
-\draw[flow, AzulStats] (data) -- node[lbl]{offline, cacheado} (app);
-\draw[flow, AzulStats] (app) -- (user);
+% --- Bandas de fase ---
+\begin{scope}[on background layer]
+  \node[fit=(src)(data), draw=NaranjaStats, dashed, rounded corners=9pt, line width=1pt, inner sep=12pt,
+    label={[NaranjaStats, font=\sffamily\bfseries\large]above:1. Se hornea UNA VEZ (sin conexión)}] {};
+  \node[fit=(app)(usr), draw=AzulClaro, dashed, rounded corners=9pt, line width=1pt, inner sep=12pt,
+    label={[AzulClaro, font=\sffamily\bfseries\large]below:2. Cada visita: AL INSTANTE}] {};
+\end{scope}
 
-% --- Descarga en vivo (arco superior, naranja) ---
-\draw[->, line width=1pt, NaranjaStats, dashed]
-  (app.north) .. controls +(0,1.6) and +(0,1.6) .. node[lbl, text=NaranjaStats]{Descargas: en vivo a INEI} (inei.north);
-
-% --- Despliegue (abajo) ---
-\draw[->, line width=0.8pt, AzulStats] (data.south) |- (gh.west);
-\draw[->, line width=0.8pt, AzulStats] (gh) -- (cloud);
-\draw[->, line width=0.8pt, AzulStats, dashed] (cloud.east) -| node[lbl, pos=0.25]{sirve la app} (app.south);
+% --- Nota en el hueco inferior izquierdo ---
+\node[text width=6.4cm, align=left, font=\sffamily\small, text=AzulStats, anchor=west]
+  at ([yshift=2mm]src.west |- app) {El usuario solo lee la capa ya horneada en \texttt{data/}: por eso
+  la web es \textbf{instantánea} y no depende de que INEI esté arriba.};
 
 \end{tikzpicture}
 \end{document}
