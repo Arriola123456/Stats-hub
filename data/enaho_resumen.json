@@ -1,0 +1,30 @@
+{
+  "alcance_demo": [
+    "2024"
+  ],
+  "colecciones": [
+    "ENAHO Metodología Actualizada (2004+)",
+    "ENAHO Panel"
+  ],
+  "anios_por_coleccion": {
+    "ENAHO Panel": [
+      "2024"
+    ],
+    "ENAHO Metodología Actualizada (2004+)": [
+      "2024"
+    ]
+  },
+  "n_modulos": 36,
+  "variables_unicas": 21556,
+  "filas": 22887,
+  "cobertura_total": {
+    "colecciones": [
+      "ENAHO Metodología Actualizada (2004+)",
+      "ENAHO Metodología Anterior (1997-2003)",
+      "ENAHO Panel"
+    ],
+    "anio_min": 1997,
+    "anio_max": 2025
+  },
+  "fecha_catalogo": "2026-03-31T16:40:16.441705+00:00"
+}

@@ -1,0 +1,15 @@
+streamlit>=1.40
+inei-microdatos>=0.2
+pandas>=2.0
+numpy>=1.26
+pyarrow>=14
+pyreadstat>=1.2
+matplotlib>=3.7
+openpyxl>=3.1
+pdfplumber>=0.11
+pymupdf>=1.24
+Pillow>=10
+
+# OCR opcional: fallback para cuestionarios escaneados (poco frecuente en ENAHO 2022+).
+# PaddleOCR es pesado y puede no tener wheels en Python 3.14; instalalo solo si lo necesitas.
+# paddleocr
